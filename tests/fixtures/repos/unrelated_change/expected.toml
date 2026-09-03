@@ -1,0 +1,4 @@
+important_files = ["src/payments/retry.py"]
+noise_files = ["docs/copy.md"]
+changed_symbols = ["retry_policy"]
+ranking = ["src/payments/retry.py", "docs/copy.md"]

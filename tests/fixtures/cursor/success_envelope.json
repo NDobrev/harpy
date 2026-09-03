@@ -1,0 +1,10 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "is_error": false,
+  "duration_ms": 1234,
+  "duration_api_ms": 1234,
+  "result": "{\n  \"pr_intent\": \"Allow organization administrators to manage users.\",\n  \"changes\": [\n    {\n      \"id\": \"C1\",\n      \"title\": \"Organization admins gain delete permission\",\n      \"business_impact\": 9,\n      \"behavior_change\": 10,\n      \"blast_radius\": 8,\n      \"security_sensitivity\": 9,\n      \"data_sensitivity\": 3,\n      \"novelty\": 7,\n      \"confidence\": 0.94,\n      \"unexpectedness\": 0.21,\n      \"risk\": \"high\",\n      \"before\": \"Only project administrators can delete users.\",\n      \"after\": \"Organization administrators can also delete users.\",\n      \"why\": \"The PR introduces organization-wide administrative privileges.\",\n      \"business_effect\": \"Organization administrators can manage users across projects.\",\n      \"files\": [\"src/auth/permissions.py\"],\n      \"hunk_ids\": [\"H1\"],\n      \"affected_symbols\": [\"PermissionService.can_delete_user\"],\n      \"affected_components\": [\"DELETE /users/:id\"],\n      \"domains\": [\"authorization\"],\n      \"tests\": [\"tests/test_permissions.py\"],\n      \"review_questions\": [\"Should organization admins delete owners?\"],\n      \"possible_omissions\": [\"No audit logging change was found.\"]\n    }\n  ]\n}",
+  "session_id": "00000000-0000-0000-0000-000000000001",
+  "request_id": "req-1"
+}

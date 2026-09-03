@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+FIX="${HARPY_GH_FIXTURE:-sample}"
+DIR="$ROOT/tests/fixtures/gh"
+cmd="${1:-}"
+sub="${2:-}"
+if [[ "$cmd" == "auth" ]]; then
+  exit 0
+fi
+if [[ "$cmd" == "repo" && "$sub" == "view" ]]; then
+  echo '{"nameWithOwner":"acme/app"}'
+  exit 0
+fi
+if [[ "$cmd" == "pr" && "$sub" == "view" ]]; then
+  cat "$DIR/${FIX}.view.json"
+  exit 0
+fi
+if [[ "$cmd" == "pr" && "$sub" == "diff" ]]; then
+  cat "$DIR/${FIX}.diff"
+  exit 0
+fi
+echo "unexpected gh $*" >&2
+exit 2

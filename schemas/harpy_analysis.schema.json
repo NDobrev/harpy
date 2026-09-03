@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "SemanticChangeDraft": {
+      "description": "Shape emitted by the analyzer before final scoring.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "business_impact": {
+          "default": 0,
+          "title": "Business Impact",
+          "type": "number"
+        },
+        "behavior_change": {
+          "default": 0,
+          "title": "Behavior Change",
+          "type": "number"
+        },
+        "blast_radius": {
+          "default": 0,
+          "title": "Blast Radius",
+          "type": "number"
+        },
+        "security_sensitivity": {
+          "default": 0,
+          "title": "Security Sensitivity",
+          "type": "number"
+        },
+        "data_sensitivity": {
+          "default": 0,
+          "title": "Data Sensitivity",
+          "type": "number"
+        },
+        "novelty": {
+          "default": 0,
+          "title": "Novelty",
+          "type": "number"
+        },
+        "confidence": {
+          "default": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "unexpectedness": {
+          "default": 0,
+          "title": "Unexpectedness",
+          "type": "number"
+        },
+        "risk": {
+          "default": "low",
+          "title": "Risk",
+          "type": "string"
+        },
+        "before": {
+          "default": "",
+          "title": "Before",
+          "type": "string"
+        },
+        "after": {
+          "default": "",
+          "title": "After",
+          "type": "string"
+        },
+        "why": {
+          "default": "",
+          "title": "Why",
+          "type": "string"
+        },
+        "business_effect": {
+          "default": "",
+          "title": "Business Effect",
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "hunk_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Hunk Ids",
+          "type": "array"
+        },
+        "affected_symbols": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Symbols",
+          "type": "array"
+        },
+        "affected_components": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Components",
+          "type": "array"
+        },
+        "domains": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Domains",
+          "type": "array"
+        },
+        "tests": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tests",
+          "type": "array"
+        },
+        "review_questions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Review Questions",
+          "type": "array"
+        },
+        "possible_omissions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Possible Omissions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "SemanticChangeDraft",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "pr_intent": {
+      "default": "",
+      "title": "Pr Intent",
+      "type": "string"
+    },
+    "changes": {
+      "items": {
+        "$ref": "#/$defs/SemanticChangeDraft"
+      },
+      "title": "Changes",
+      "type": "array"
+    },
+    "degraded": {
+      "default": false,
+      "title": "Degraded",
+      "type": "boolean"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    }
+  },
+  "title": "SemanticAnalysisResult",
+  "type": "object"
+}

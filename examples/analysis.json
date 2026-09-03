@@ -1,0 +1,10 @@
+{
+  "pr_intent": "Allow organization administrators to manage users.",
+  "changes": [
+    {
+      "id": "C1",
+      "title": "Organization admins gain delete permission",
+      "hunk_ids": ["H1"]
+    }
+  ]
+}

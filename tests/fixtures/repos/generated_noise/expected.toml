@@ -1,0 +1,4 @@
+important_files = ["src/app.py"]
+noise_files = ["src/generated/client.ts"]
+changed_symbols = ["main"]
+ranking = ["src/app.py", "src/generated/client.ts"]

@@ -1,0 +1,4 @@
+important_files = ["src/auth/permissions.py"]
+noise_files = []
+changed_symbols = ["can_delete_user"]
+ranking = ["src/auth/permissions.py", "tests/test_permissions.py"]

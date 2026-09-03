@@ -1,0 +1,4 @@
+important_files = ["alembic/versions/0001_add_org.py", "src/models/user.py"]
+noise_files = []
+changed_symbols = ["User"]
+ranking = ["src/models/user.py", "alembic/versions/0001_add_org.py"]

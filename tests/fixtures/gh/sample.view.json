@@ -1,0 +1,27 @@
+{
+  "number": 1842,
+  "title": "Allow organization administrators to manage users",
+  "body": "Org admins should be able to delete users.",
+  "additions": 42,
+  "deletions": 7,
+  "baseRefName": "main",
+  "headRefName": "feat/org-admin",
+  "headRefOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "baseRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "url": "https://github.com/acme/app/pull/1842",
+  "commits": [{"oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}],
+  "files": [
+    {
+      "path": "src/auth/permissions.py",
+      "additions": 4,
+      "deletions": 1,
+      "status": "modified"
+    },
+    {
+      "path": "tests/test_permissions.py",
+      "additions": 10,
+      "deletions": 0,
+      "status": "modified"
+    }
+  ]
+}
