@@ -1,0 +1,270 @@
+Screen {
+    layout: grid;
+    grid-size: 3 2;
+    grid-rows: 1fr auto;
+    grid-columns: 1fr 2fr 1fr;
+}
+
+Screen.-impact {
+    grid-columns: 1fr 2fr 1fr;
+}
+
+#changes, #diff, #context {
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+#changes {
+    column-span: 1;
+    row-span: 1;
+    border: solid $accent;
+}
+
+#changes:focus {
+    border: double $accent;
+}
+
+.tree-row {
+    width: 1fr;
+    max-width: 100%;
+    height: auto;
+    text-wrap: wrap;
+    text-overflow: fold;
+    padding: 0 1;
+}
+
+.tree-group {
+    text-style: bold;
+    color: $accent;
+    padding-top: 1;
+}
+
+#changes .tree-row.-selected {
+    background: $accent;
+    color: $foreground;
+    text-style: bold;
+}
+
+#api-list .tree-row.-selected {
+    background: $foreground 20%;
+    text-style: bold;
+}
+
+#api-detail.impact-api {
+    border: solid $accent;
+}
+
+#api-detail.impact-api:focus {
+    border: double $accent;
+}
+
+#api-detail.impact-db {
+    border: solid $secondary;
+}
+
+#api-detail.impact-db:focus {
+    border: double $secondary;
+}
+
+#api-detail.impact-bl {
+    border: solid $warning;
+}
+
+#api-detail.impact-bl:focus {
+    border: double $warning;
+}
+
+#api-detail.impact-sec {
+    border: solid #d946ef;
+}
+
+#api-detail.impact-sec:focus {
+    border: double #d946ef;
+}
+
+#api-detail.impact-breaking {
+    border: solid $error;
+}
+
+#api-detail.impact-breaking:focus {
+    border: double $error;
+}
+
+#diff {
+    column-span: 1;
+    row-span: 1;
+    border: solid $primary;
+}
+
+#diff:focus {
+    border: double $primary;
+}
+
+#context {
+    column-span: 1;
+    row-span: 1;
+    border: solid $secondary;
+}
+
+#context:focus {
+    border: double $secondary;
+}
+
+.diff-section, .diff-code {
+    width: 1fr;
+    max-width: 100%;
+    height: auto;
+    text-wrap: wrap;
+    text-overflow: fold;
+    padding: 0 1;
+}
+
+.diff-row {
+    width: 1fr;
+    max-width: 100%;
+    height: auto;
+    layout: horizontal;
+}
+
+.diff-row.-active {
+    background: $primary 20%;
+}
+
+.diff-gutter {
+    width: 16;
+    min-width: 12;
+    height: auto;
+    text-wrap: wrap;
+    text-overflow: fold;
+    padding: 0 1;
+    border-right: tall $foreground 30%;
+    text-style: bold;
+}
+
+.diff-gutter-current {
+    color: $success;
+}
+
+.diff-gutter-orange {
+    color: $warning;
+}
+
+.diff-gutter-blue {
+    color: $secondary;
+}
+
+#diff-body, #context-body {
+    width: 1fr;
+    max-width: 100%;
+    height: auto;
+    padding: 0 1;
+    text-wrap: wrap;
+    text-overflow: fold;
+}
+
+#api-list {
+    column-span: 1;
+    row-span: 1;
+    border: solid $accent;
+    display: none;
+}
+
+#api-list:focus {
+    border: double $accent;
+}
+
+#api-detail {
+    column-span: 1;
+    row-span: 1;
+    border: solid $primary;
+    display: none;
+}
+
+#api-detail:focus {
+    border: double $primary;
+}
+
+#api-diagram {
+    column-span: 1;
+    row-span: 1;
+    border: solid $secondary;
+    display: none;
+}
+
+#api-diagram:focus {
+    border: double $secondary;
+}
+
+#api-detail-body {
+    width: 1fr;
+    max-width: 100%;
+    height: auto;
+    text-wrap: wrap;
+    text-overflow: fold;
+    padding: 0 1;
+}
+
+#api-diagram-body {
+    width: 1fr;
+    max-width: 100%;
+    height: auto;
+    text-wrap: nowrap;
+    overflow-x: auto;
+    padding: 0 1;
+}
+
+#status {
+    column-span: 3;
+    width: 1fr;
+    height: auto;
+    min-height: 1;
+    text-wrap: wrap;
+    text-overflow: fold;
+    padding: 0 1;
+}
+
+ScopeDialog {
+    align: center middle;
+}
+
+#scope-box {
+    width: 88;
+    height: auto;
+    max-height: 30;
+    background: $surface;
+    border: solid $accent;
+    padding: 1 1;
+}
+
+#scope-rows {
+    height: auto;
+    max-height: 12;
+    overflow-y: auto;
+}
+
+.scope-row {
+    width: 1fr;
+    height: 1;
+    padding: 0 1;
+}
+
+.scope-row.-selected {
+    background: $accent;
+    color: $foreground;
+    text-style: bold;
+}
+
+#scope-preset, #scope-summary, #scope-help, #scope-note {
+    width: 1fr;
+    height: auto;
+    padding: 0 1;
+}
+
+#scope-help {
+    color: $text-muted;
+}
+
+#scope-name-input {
+    display: none;
+    margin-top: 1;
+}
