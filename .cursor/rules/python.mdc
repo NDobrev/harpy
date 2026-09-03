@@ -1,0 +1,13 @@
+---
+globs: src/**/*.py
+alwaysApply: false
+---
+
+# Python
+
+- Pydantic v2 models at every process/IO boundary.
+- Full type annotations. `mypy --strict` must pass.
+- No `print` outside `src/harpy/cli.py` and `src/harpy/tui/`.
+- No bare `subprocess`. Use `harpy.proc.run`.
+- Prefer explicit errors over silent defaults when a dependency (`gh`, `git`) is missing.
+- Config weights and the default model live in `harpy.config`, not call sites.

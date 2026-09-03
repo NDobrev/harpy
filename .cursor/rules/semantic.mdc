@@ -1,0 +1,13 @@
+---
+globs: src/harpy/semantic/**
+alwaysApply: false
+---
+
+# Semantic / cursor-agent
+
+- Invocation: `cursor-agent -p --output-format json --mode ask --trust --model <cfg.semantic.model> --workspace <worktree>`.
+- Default model: `cursor-grok-4.6-high-fast`. Per-scope override is allowed; scopes that share a model share one call.
+- No `--output-schema`. Prompt-enforce one JSON object. Parse tolerantly (last fenced json block, else first balanced object).
+- Validate with Pydantic. Retry once with the validation error. Then static-only degradation. Never crash the TUI.
+- Bump `PROMPT_VERSION` when prompts change. Version is part of the cache key.
+- Never send lockfiles, generated bodies, `.env`, or secrets. Worktree of head SHA is the workspace so ignored files are absent.

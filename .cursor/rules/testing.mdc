@@ -1,0 +1,12 @@
+---
+globs: tests/**
+alwaysApply: false
+---
+
+# Testing
+
+- No network. No live `cursor-agent` unless `@pytest.mark.cursor`.
+- Use `tests/fake_bin/gh` and `tests/fixtures/` over mocks.
+- Goldens via syrupy. Intentional updates only through `make goldens`.
+- Never edit or delete an existing test to make a change pass.
+- `tests/test_architecture.py` must keep import-direction and subprocess invariants.
