@@ -1,0 +1,23 @@
+[semantic]
+model = "cursor-grok-4.6-high-fast"
+enabled = true
+timeout_seconds = 600
+
+[scoring]
+auth_change = 30
+public_behavior = 25
+db_change = 20
+api_change = 20
+migration = 15
+config_default = 15
+widely_referenced = 15
+error_handling = 10
+test_only = -10
+snapshot = -20
+generated = -30
+lockfile = -40
+
+[paths]
+generated = ["**/generated/**", "**/*.generated.*", "**/*_pb2.py"]
+high_impact = ["**/auth/**", "**/billing/**", "**/payments/**"]
+low_impact = ["docs/**"]
