@@ -29,7 +29,9 @@ diff one keystroke away.
 
 <img src="docs/assets/review-workspace.svg" alt="Harpy review workspace showing ranked logical changes, focused diff, and review context">
 
-<div align="center"><sub>Real Harpy TUI rendered with illustrative review data.</sub></div>
+<div align="center">
+  <sub><strong>Normal review:</strong> ranked decisions on the left, supporting diff in the center, reasoning and questions on the right.</sub>
+</div>
 
 ## Why Harpy?
 
@@ -121,6 +123,37 @@ Harpy is organized around the reviewer's questions:
 3. **What behavior moved?** Before/after summaries explain the decision, not just the syntax.
 4. **What could this affect?** Impact views surface contracts, schemas, callers, workers, and tests.
 5. **What is still uncertain?** Questions, omissions, confidence, and source evidence stay visible.
+
+### Follow a change from decision to evidence
+
+The normal view keeps three levels of detail visible at once:
+
+- **Navigator** — logical changes ranked by risk and review priority, with their
+  files nested underneath.
+- **Diff canvas** — only the hunks supporting the selected change, with the
+  current review context highlighted.
+- **Inspector** — before/after behavior, business effect, confidence, questions,
+  possible omissions, tests, and reviewer state.
+
+Press <kbd>e</kbd> when you need the full diff, <kbd>z</kbd> to focus one pane,
+or <kbd>r</kbd>, <kbd>t</kbd>, and <kbd>o</kbd> to switch the inspector between
+questions, tests, and omissions.
+
+### See the impact, not just the edit
+
+Press <kbd>i</kbd> to pivot from changed lines to changed contracts. Harpy puts
+API and database impacts in one navigable view: affected files on the left, a
+sequence, flow, schema, or blast-radius rendering in the center, and the
+before/after contract with callers and risk on the right.
+
+<img src="docs/assets/impact-view.svg" alt="Harpy impact view showing an API change, affected files, sequence diagram, and contract details">
+
+<div align="center">
+  <sub><strong>Impact view:</strong> API / DB surface → rendered behavior → contract details and callers.</sub>
+</div>
+
+Diagrams are deliberately optional. Harpy renders one only when a sequence,
+schema, flow, or blast tree communicates the change better than prose.
 
 ### One inbox for active and remembered reviews
 
