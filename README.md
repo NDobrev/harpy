@@ -185,7 +185,7 @@ The browser caches GitHub results for resilient offline use. Run
 |---|---|---|---|
 | <kbd>j</kbd> / <kbd>k</kbd> | Move or scroll | <kbd>Tab</kbd> | Next pane |
 | <kbd>Space</kbd> | Fold or unfold | <kbd>z</kbd> | Maximize focused pane |
-| <kbd>i</kbd> | API / DB impact | <kbd>s</kbd> | Choose analysis scope |
+| <kbd>i</kbd> | API / DB impact | <kbd>s</kbd> | Analyze |
 | <kbd>r</kbd> | Review questions | <kbd>t</kbd> | Test analysis |
 | <kbd>o</kbd> | Possible omissions | <kbd>/</kbd> | Search everything |
 | <kbd>v</kbd> | Mark reviewed | <kbd>b</kbd> | Toggle blocker |

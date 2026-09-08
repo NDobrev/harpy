@@ -22,7 +22,7 @@ class PaletteAction:
 
 
 PALETTE_ACTIONS: tuple[PaletteAction, ...] = (
-    PaletteAction("scope", "Choose analysis scope", "s"),
+    PaletteAction("scope", "Analyze", "s"),
     PaletteAction("expand", "Expand full diff", "e"),
     PaletteAction("impact", "Impact lens", "i"),
     PaletteAction("questions", "Questions lens", "r"),

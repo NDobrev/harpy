@@ -82,7 +82,7 @@ def _row(item: PaletteAction, *, selected: bool) -> str:
 HELP_TEXT = """
 j/k arrows  move        tab  cycle panes
 /  search               ctrl+p  palette
-s  scope                e  expand diff
+s  analyze              e  expand diff
 i  impact               r t o  questions/tests/omissions
 v  reviewed             V  reopen        b  blocker
 m  note                 z  maximize
