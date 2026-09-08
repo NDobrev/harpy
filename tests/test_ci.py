@@ -12,6 +12,7 @@ def test_ci_workflow_is_the_acceptance_gate() -> None:
     assert "make setup" in text
     assert "make check" in text
     assert 'python-version: "3.12"' in text
+    assert "astral-sh/setup-uv@v10.0.1" in text
     assert "cursor-agent" not in text
     assert "--force" not in text
 
