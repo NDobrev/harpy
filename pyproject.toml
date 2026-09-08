@@ -26,6 +26,8 @@ dev = [
     "syrupy>=4.0",
     "ruff>=0.6",
     "mypy>=1.11,<2",
+    "setuptools>=68",
+    "wheel",
 ]
 
 [project.scripts]

@@ -1,0 +1,107 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version from pyproject.toml
+        required: true
+        type: string
+      prerelease:
+        description: Mark the GitHub release as a prerelease
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      CI: true
+      RELEASE_VERSION: ${{ inputs.version }}
+      PRERELEASE: ${{ inputs.prerelease }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install
+        run: make setup
+      - name: Validate release
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Releases must be dispatched from main, not $GITHUB_REF" >&2
+            exit 1
+          fi
+
+          package_version="$(
+            uv run python -c \
+              'import pathlib, tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])'
+          )"
+          if [[ "$RELEASE_VERSION" != "$package_version" ]]; then
+            echo "Input version $RELEASE_VERSION does not match package version $package_version" >&2
+            exit 1
+          fi
+
+          if [[ "$PRERELEASE" == "true" ]]; then
+            pattern='^[0-9]+\.[0-9]+\.[0-9]+(a|b|rc)[0-9]+$'
+          else
+            pattern='^[0-9]+\.[0-9]+\.[0-9]+$'
+          fi
+          if [[ ! "$RELEASE_VERSION" =~ $pattern ]]; then
+            echo "Version does not match the selected stable/prerelease format" >&2
+            exit 1
+          fi
+
+          tag="v$RELEASE_VERSION"
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            echo "Tag $tag already exists" >&2
+            exit 1
+          fi
+      - name: Check and build
+        run: |
+          rm -rf dist
+          make check
+      - name: Verify artifacts
+        shell: bash
+        run: |
+          shopt -s nullglob
+          artifacts=(dist/*.whl dist/*.tar.gz)
+          if [[ ${#artifacts[@]} -ne 2 ]]; then
+            echo "Expected one wheel and one source archive" >&2
+            exit 1
+          fi
+      - name: Attest artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          shopt -s nullglob
+          artifacts=(dist/*.whl dist/*.tar.gz)
+          args=("v$RELEASE_VERSION" "${artifacts[@]}" --target "$GITHUB_SHA")
+          args+=(--title "v$RELEASE_VERSION" --generate-notes)
+          if [[ "$PRERELEASE" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "${args[@]}"

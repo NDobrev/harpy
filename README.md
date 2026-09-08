@@ -61,6 +61,15 @@ replace it.
 ### Install with `uv` (recommended)
 
 ```bash
+release_dir="$(mktemp -d)"
+gh release download --repo NDobrev/harpy --pattern '*.whl' --dir "$release_dir"
+uv tool install "$release_dir"/*.whl
+harpy doctor
+```
+
+To install the current development version instead:
+
+```bash
 uv tool install git+https://github.com/NDobrev/harpy.git
 harpy doctor
 ```
@@ -84,6 +93,10 @@ uv run harpy doctor
 
 Run the full acceptance suite with `make check`.
 </details>
+
+Changes to `main` go through a pull request and must pass `make check` in CI.
+Maintainers create versioned wheel and source releases using
+[the release runbook](docs/RELEASING.md).
 
 ## Quick start
 

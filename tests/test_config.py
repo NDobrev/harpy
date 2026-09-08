@@ -26,6 +26,8 @@ def test_toml_default_matches_constant() -> None:
     root = Path(__file__).resolve().parents[1]
     text = (root / ".harpy.toml").read_text(encoding="utf-8")
     assert f'model = "{DEFAULT_MODEL}"' in text
+    build_script = (root / "scripts" / "build-task.sh").read_text(encoding="utf-8")
+    assert f'HARPY_AGENT_MODEL="${{HARPY_AGENT_MODEL:-{DEFAULT_MODEL}}}"' in build_script
     loaded = load_config(start=root, env={})
     assert loaded.semantic.model == DEFAULT_MODEL
 

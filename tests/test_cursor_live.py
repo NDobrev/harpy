@@ -3,11 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from harpy.semantic.parser import parse_agent_stdout
-
-pytestmark = pytest.mark.cursor
 
 
 def test_replay_cleanliness_fixture() -> None:

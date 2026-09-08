@@ -11,19 +11,21 @@ FORMAT_ARGS := --check
 RUFF_FIX :=
 endif
 
-.PHONY: setup fmt lint types test check goldens review tasks build-task
+.PHONY: setup lock fmt lint types test package check goldens review tasks build-task
 
 setup:
 	uv sync $(UV_SYNC_FLAGS)
 	@echo "harpy is installed in .venv. Invoke it with: uv run harpy --help"
 	@echo "fish: source .venv/bin/activate.fish"
 
+lock:
+	uv lock --check
+
 fmt:
 	uv run ruff format $(FORMAT_ARGS) src tests scripts
-	uv run ruff check $(RUFF_FIX) src tests scripts
 
 lint:
-	uv run ruff check src tests scripts
+	uv run ruff check $(RUFF_FIX) src tests scripts
 
 types:
 	uv run mypy src tests
@@ -31,7 +33,10 @@ types:
 test:
 	uv run pytest -m "not cursor"
 
-check: fmt lint types test
+package:
+	uv build --no-sources --no-build-isolation
+
+check: lock fmt lint types test package
 
 goldens:
 	uv run pytest --snapshot-update
