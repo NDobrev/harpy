@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="title desc">
+  <title id="title">Harpy</title>
+  <desc id="desc">A stylized harpy wing built from code review diff lines</desc>
+  <defs>
+    <linearGradient id="wing" x1="44" y1="38" x2="190" y2="202" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35C9FF"/>
+      <stop offset=".54" stop-color="#8B5CF6"/>
+      <stop offset="1" stop-color="#FF6B6B"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feColorMatrix in="blur" values="0 0 0 0 0.22 0 0 0 0 0.79 0 0 0 0 1 0 0 0 .3 0"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="240" height="240" rx="52" fill="#090B13"/>
+  <path d="M54 166c32 9 61 4 84-12 18-12 30-29 39-50-26 13-50 13-72 2 34-2 61-16 78-43-31 11-61 8-90-8 25-1 47-8 66-23-51 5-94 27-113 67-11 22-8 45 8 67Z" fill="url(#wing)" filter="url(#glow)"/>
+  <path d="M72 88h52M62 112h58M62 136h39" fill="none" stroke="#090B13" stroke-width="10" stroke-linecap="round"/>
+  <path d="m124 135 11 11 25-28" fill="none" stroke="#090B13" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M53 167c29 21 61 31 96 30" fill="none" stroke="#35C9FF" stroke-width="5" stroke-linecap="round"/>
+</svg>
