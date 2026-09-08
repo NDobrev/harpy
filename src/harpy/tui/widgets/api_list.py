@@ -53,9 +53,14 @@ class ApiList(VerticalScroll):
         selected: int = 0,
         selected_file: str | None = None,
     ) -> None:
+        first_population = not self._rows
         self._items = items
         self._rows = rows_from_entries(items)
-        self._collapsed &= {row.node_key for row in self._rows if row.has_children}
+        foldable = {row.node_key for row in self._rows if row.has_children}
+        if first_population:
+            self._collapsed = foldable
+        else:
+            self._collapsed &= foldable
         self._visible = visible_impact_rows(self._rows, self._collapsed)
         self._cursor = _cursor_for(self._visible, selected, selected_file)
         self._remount()

@@ -69,9 +69,18 @@ class ChangeList(VerticalScroll):
         rows = flatten_forest(build_change_forest(changes), hunks)
         signature = tuple((row.kind, row.change_id, row.file_path) for row in rows)
         if signature != self._signature:
+            first_population = not self._signature
             self._signature = signature
             self._rows = rows
-            self._collapsed &= {row.node_key for row in rows if row.node_key}
+            valid_keys = {row.node_key for row in rows if row.node_key}
+            if first_population:
+                self._collapsed = {
+                    row.node_key
+                    for row in rows
+                    if row.kind == "change" and row.has_children and row.node_key
+                }
+            else:
+                self._collapsed &= valid_keys
             self._remount()
         self.set_cursor(selected_id, selected_file, notify=False)
 

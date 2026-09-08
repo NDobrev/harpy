@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from textual.binding import Binding
 
 from harpy.models import (
     AnalysisResult,
@@ -13,9 +14,11 @@ from harpy.models import (
     SequenceStep,
 )
 from harpy.tui.app import HarpyApp
-from harpy.tui.screens.palette import CommandPalette
+from harpy.tui.screens.palette import HELP_TEXT, CommandPalette
+from harpy.tui.widgets.api_list import ApiList
 from harpy.tui.widgets.change_list import ChangeList
 from harpy.tui.widgets.diff_view import DiffView
+from harpy.tui.workspace import PALETTE_ACTIONS
 
 
 def _result() -> AnalysisResult:
@@ -42,6 +45,17 @@ def _result() -> AnalysisResult:
             LogicalChange(id="C2", title="docs", files=["README.md"]),
         ],
     )
+
+
+def test_analysis_action_uses_analyze_label() -> None:
+    binding = next(
+        item for item in HarpyApp.BINDINGS if isinstance(item, Binding) and item.action == "scope"
+    )
+    palette_action = next(item for item in PALETTE_ACTIONS if item.id == "scope")
+
+    assert binding.description == "Analyze"
+    assert palette_action.title == "Analyze"
+    assert "s  analyze" in HELP_TEXT
 
 
 @pytest.mark.asyncio
@@ -195,6 +209,21 @@ def _result_with_impact() -> AnalysisResult:
             )
         ],
     )
+
+
+@pytest.mark.asyncio
+async def test_review_trees_start_with_file_branches_collapsed() -> None:
+    review = HarpyApp(_result_with_diff())
+    async with review.run_test(size=(160, 48)):
+        changes = review.query_one(ChangeList)
+        assert any(row.kind == "change" for row in changes._visible)
+        assert all(row.kind != "file" for row in changes._visible)
+
+    impact = HarpyApp(_result_with_impact())
+    async with impact.run_test(size=(160, 48)) as pilot:
+        await pilot.press("i")
+        entries = impact.query_one(ApiList)
+        assert [row.kind for row in entries._visible] == ["impact"]
 
 
 @pytest.mark.asyncio
