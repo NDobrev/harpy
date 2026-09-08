@@ -1,4 +1,6 @@
 """Harpy — compress code volume, not decision information."""
 
-__version__ = "0.1.0"
+from importlib.metadata import version as _distribution_version
+
+__version__ = _distribution_version("harpy")
 ANALYSIS_VERSION = "2"
