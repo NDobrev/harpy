@@ -2,28 +2,36 @@
 
 Harpy is a terminal PR reviewer. The product unit is a **logical change**, not a file. Guiding principle: compress code volume, not decision information.
 
-Design: [docs/design/impl.md](docs/design/impl.md). Glossary: [docs/CONTEXT.md](docs/CONTEXT.md). Backlog: [docs/tasks/](docs/tasks/).
+Design: [docs/design/review-workspace.md](docs/design/review-workspace.md), [docs/design/impl.md](docs/design/impl.md). Glossary: [docs/CONTEXT.md](docs/CONTEXT.md). Backlog: [docs/tasks/](docs/tasks/).
 
 ## Layering
 
 ```text
-cli.py → analysis/pipeline.py
-              ├─ github/          (gh CLI via proc.py)
-              ├─ git/             (worktree + diff via proc.py)
-              ├─ analysis/        (classifier, signals, symbols, references)
-              ├─ semantic/        (cursor-agent, read-only)
-              ├─ analysis/scoring.py  (imports models.py only)
-              └─ cache/
-tui/ → pipeline.py only
+cli.py → analysis/pipeline.py (ReviewService facade)
+ ├─ github/          (gh CLI via proc.py)
+ ├─ git/             (worktree + diff via proc.py)
+ ├─ analysis/        (classifier, signals, symbols, references)
+ ├─ semantic/        (cursor-agent, read-only)
+ ├─ analysis/scoring.py  (imports models.py only)
+ ├─ cache/
+ ├─ storage/         (durable SQLite + content-addressed files)
+ ├─ evidence/        (citations, coverage; no analyzer)
+ ├─ review/          (identity, decisions, routes)
+ ├─ verification/    (optional isolated runner)
+ └─ export/
+tui/ → pipeline/service, review_scope, prefs, models
 ```
 
 Hard invariants:
 
-- `tui/` never imports `semantic/`.
-- `semantic/` never imports `tui/`.
+- `tui/` never imports `semantic/`, `storage/`, `evidence/`, `github/`, `verification/`, or `git/`.
+- `semantic/` never imports `tui/` or `verification/`.
+- `review/` never imports `semantic/` or `subprocess`.
+- `evidence/` never imports `semantic/`.
 - `scoring.py` imports only `harpy.models` (and stdlib / pydantic).
 - Nothing outside `src/harpy/proc.py` imports `subprocess`.
 - The TUI never calls `cursor-agent`. Scoring never renders UI.
+- The analyzer never calls the verification runner.
 
 `tests/test_architecture.py` enforces this. A layer violation fails `make check`.
 

@@ -32,3 +32,4 @@ def test_rewrite_inserts_review_before_flags() -> None:
     assert rewrite_argv(["doctor", "--json"]) == ["doctor", "--json"]
     assert rewrite_argv(["analyze", "1842", "--static"]) == ["analyze", "1842", "--static"]
     assert rewrite_argv(["--help"]) == ["--help"]
+    assert rewrite_argv([]) == ["browse"]

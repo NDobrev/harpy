@@ -1,24 +1,19 @@
 # Evaluation
 
-Local-only repo: no self-PRs. Score Harpy on labelled **external** public PRs.
+Default checks use locally stored, sanitized fixtures. Live agent, network, and Docker
+evaluations stay outside `make check`.
 
-```bash
-make review REPO=<owner/name> PR=<n>
-```
+## Quality gates before V2 default
 
-## Metrics
+- Diff inventory is fully accounted for, including explicit exclusions.
+- Displayed citations pass source-location validation.
+- Unavailable scopes have an explicit state.
+- Reviewed state does not carry across changed evidence.
+- Important-change recall is measured against the labeled baseline once the
+  20-case corpus lands.
 
-- Top-3 recall: human-important logical changes in the first 3 rows
-- Top-5 recall
-- Noise reduction: lockfile/generated/snapshot not in the top 5 unless unexpected
-- Grouping quality: one product decision → one logical change
+## Corpus (HP-068)
 
-## Labels
-
-For each PR record:
-
-| PR | Important changes | Noise | Unexpected | Top-5 recall |
-|---|---|---|---|---|
-| _example acme/app#1842_ | org-admin delete | lockfile regen | none | _pending_ |
-
-Fill rows after real runs. Do not tune weights until at least five labelled PRs exist.
+Ten agent-produced changes and ten contributor-style changes, covering Python,
+TypeScript/TSX, Go, Rust, and SQL, plus multi-revision sequences. Store fixtures
+under `tests/fixtures/eval/` as they are labeled.

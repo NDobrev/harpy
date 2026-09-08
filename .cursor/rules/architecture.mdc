@@ -4,10 +4,12 @@ alwaysApply: true
 
 # Architecture
 
-- Layers: `cli` → `analysis/pipeline` → `{github, git, analysis, semantic, cache}`. `tui` → `pipeline`, `review_scope`, `prefs`, `models`.
-- `tui/` never imports `semantic/`. `semantic/` never imports `tui/`.
+- Layers: `cli` → `analysis/pipeline` (ReviewService facade) → `{github, git, analysis, semantic, cache, storage, evidence, review, verification, export}`. `tui` → `pipeline`/`service`, `review_scope`, `prefs`, `models`.
+- `tui/` never imports `semantic/`, `storage/`, `evidence/`, `github/`, `verification/`, or `git/`.
+- `semantic/` never imports `tui/` or `verification/`.
+- `review/` never imports `semantic/` or `subprocess`. `evidence/` never imports `semantic/`.
 - `src/harpy/analysis/scoring.py` imports only `harpy.models` plus stdlib/pydantic.
 - `subprocess` is banned except in `src/harpy/proc.py`. All process launches go through `harpy.proc.run`.
-- Analyzer role is read-only (`--mode ask`). Do not give semantic analysis `--force`.
+- Analyzer role is read-only (`--mode ask`). Do not give semantic analysis `--force`. The analyzer never calls the verification runner.
 - Pinned default model: `cursor-grok-4.6-high-fast`. Per-scope override is allowed in the review-scope dialog.
 - This repo has no git remote. Do not `gh repo create` or `git remote add`.

@@ -213,6 +213,54 @@ Screen.-impact {
     padding: 0 1;
 }
 
+#freshness {
+    dock: top;
+    width: 100%;
+    height: auto;
+    min-height: 1;
+    text-wrap: wrap;
+    text-overflow: fold;
+    padding: 0 1;
+    color: $text-muted;
+}
+
+#search-input {
+    dock: top;
+    width: 100%;
+    display: none;
+}
+
+Screen.-wide #changes, Screen.-wide #diff, Screen.-wide #context {
+    column-span: 1;
+}
+
+Screen.-narrow #changes,
+Screen.-narrow #diff,
+Screen.-narrow #context {
+    column-span: 3;
+}
+
+Screen.-zoomed {
+    grid-size: 1 2;
+    grid-columns: 1fr;
+    grid-rows: 1fr auto;
+}
+
+Screen.-zoomed #changes,
+Screen.-zoomed #diff,
+Screen.-zoomed #context,
+Screen.-zoomed #api-list,
+Screen.-zoomed #api-diagram,
+Screen.-zoomed #api-detail {
+    column-span: 1;
+    width: 1fr;
+    height: 1fr;
+}
+
+Screen.-zoomed #status {
+    column-span: 1;
+}
+
 #status {
     column-span: 3;
     width: 1fr;
@@ -223,48 +271,21 @@ Screen.-impact {
     padding: 0 1;
 }
 
-ScopeDialog {
+CommandPalette, HelpScreen, NoteDialog {
     align: center middle;
 }
 
-#scope-box {
-    width: 88;
+#palette-box, #help-box, #note-box {
+    width: 72;
     height: auto;
-    max-height: 30;
+    max-height: 24;
     background: $surface;
     border: solid $accent;
     padding: 1 1;
 }
 
-#scope-rows {
+#palette-rows, #help-body {
     height: auto;
-    max-height: 12;
+    max-height: 16;
     overflow-y: auto;
-}
-
-.scope-row {
-    width: 1fr;
-    height: 1;
-    padding: 0 1;
-}
-
-.scope-row.-selected {
-    background: $accent;
-    color: $foreground;
-    text-style: bold;
-}
-
-#scope-preset, #scope-summary, #scope-help, #scope-note {
-    width: 1fr;
-    height: auto;
-    padding: 0 1;
-}
-
-#scope-help {
-    color: $text-muted;
-}
-
-#scope-name-input {
-    display: none;
-    margin-top: 1;
 }

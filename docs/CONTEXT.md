@@ -2,6 +2,9 @@
 
 Use these terms. Do not invent synonyms in code or docs.
 
+Review-workspace design: [docs/design/review-workspace.md](design/review-workspace.md).
+V1 analysis design: [docs/design/impl.md](design/impl.md).
+
 | Term | Meaning |
 |---|---|
 | Logical change | One product decision spanning one or more hunks/files. The unit of review. |
@@ -31,3 +34,15 @@ Use these terms. Do not invent synonyms in code or docs.
 | Scope call | One `cursor-agent` invocation produced by grouping selected scopes that share a model. |
 | Syntax fact | Deterministic tree-sitter record (`DEF` / `IMP` / `ROUTE` / `DDL`) for a changed file. Syntax only; not types, not a call graph. |
 | Sidecar | `SYMBOL_FACTS.md` in the PR worktree. The analyzer greps it on demand. It is not inlined into the prompt bundle. |
+| Review workspace | Persistent TUI for reviewing agent-produced and human PRs with durable memory. |
+| ReviewService | Application facade for opening, refreshing, analyzing, and querying reviews. |
+| Revision snapshot | Immutable captured comparison: base-tip SHA, comparison-base SHA, head SHA or local digest, file manifest, diff digest. |
+| Analysis report | Versioned V2 result for one snapshot. `schema_version=2`. Scopes, logical changes, claims, coverage, provenance. |
+| Source evidence | Snapshot-bound citation: path, side, blob hash, inclusive line range, excerpt. |
+| Claim | Observation, inference, or question with evidence IDs and assessment (`supported` / `limited` / `unsupported`). |
+| Claim assessment | Evidence completeness for a claim. `cached` is provenance, not an assessment. |
+| Coverage entry | Hunk accounting: supplied, truncated, omitted, exclusion reason. Shared hunks count once. |
+| Freshness | Whether the viewed report matches the latest observed revision and intent. |
+| Review decision | Durable human status for a change in a report: unreviewed, reviewed, question, blocker. |
+| Review finding | Reviewer disposition on a claim or change, with history. |
+| Logical-change identity | Durable UUID plus revision-local ids (`C1`) and fingerprints. Continuity, not automatic approval. |

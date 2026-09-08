@@ -81,9 +81,17 @@ def parse_unified_diff(text: str) -> list[ChangedFile]:
             if current:
                 current.status = "deleted"
             continue
+        if raw.startswith("old mode") or raw.startswith("new mode"):
+            if current:
+                current.mode_change = True
+            continue
         if raw.startswith("Binary files") or raw.startswith("GIT binary patch"):
             if current:
                 current.is_binary = True
+            continue
+        if "Subproject commit" in raw or raw.startswith("index ") and "160000" in raw:
+            if current:
+                current.is_submodule = True
             continue
         rename_from = _RENAME.match(raw)
         if rename_from and current:

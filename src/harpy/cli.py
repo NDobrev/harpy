@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Annotated
+from uuid import UUID
 
 import typer
 
@@ -14,17 +15,21 @@ from harpy.git.worktree import WorktreeManager
 from harpy.proc import run, which
 from harpy.semantic.schemas import semantic_json_schema
 
-app = typer.Typer(no_args_is_help=True, add_completion=False)
+app = typer.Typer(no_args_is_help=False, add_completion=False)
 cache_app = typer.Typer(help="Cache operations")
 config_app = typer.Typer(help="Configuration")
 app.add_typer(cache_app, name="cache")
 app.add_typer(config_app, name="config")
-_COMMANDS = frozenset({"analyze", "doctor", "schema", "cache", "config", "review"})
+_COMMANDS = frozenset(
+    {"analyze", "doctor", "schema", "cache", "config", "review", "browse", "history"}
+)
 _VALUE_OPTS = frozenset({"--repo", "--model"})
 
 
 def rewrite_argv(args: list[str]) -> list[str]:
     """Insert `review` for `harpy 1842` and `harpy --repo owner/name 1842`."""
+    if not args:
+        return ["browse"]
     index = 0
     while index < len(args):
         token = args[index]
@@ -75,6 +80,7 @@ def review(
     model: Annotated[str | None, typer.Option("--model")] = None,
     no_ai: Annotated[bool, typer.Option("--no-ai")] = False,
     debug: Annotated[bool, typer.Option("--debug")] = False,
+    report: Annotated[str | None, typer.Option("--report")] = None,
 ) -> None:
     config = _config(model)
     from harpy.tui.app import run_tui
@@ -87,8 +93,22 @@ def review(
     def progress(message: str) -> None:
         typer.echo(message, err=True)
 
+    if report:
+        from harpy.analysis.workflows.browser import load_open_review_by_report
+
+        try:
+            opened = load_open_review_by_report(UUID(report))
+        except ValueError as exc:
+            typer.secho("invalid report id", fg=typer.colors.RED, err=True)
+            raise typer.Exit(1) from exc
+        if opened is None:
+            typer.secho("report not found", fg=typer.colors.RED, err=True)
+            raise typer.Exit(1)
+        run_tui(opened.result, config=config, review_id=opened.review_id)
+        return
+
     try:
-        from harpy.analysis.pipeline import analyze_static
+        from harpy.analysis.pipeline import analyze_static, persist_analysis
 
         result = analyze_static(
             pr,
@@ -97,12 +117,13 @@ def review(
             use_ai=not no_ai,
             progress=progress,
         )
+        item = persist_analysis(result)
     except Exception as exc:  # noqa: BLE001
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(1) from exc
     if result.pending_semantic:
         progress("Opening review. Press s to choose review scope…")
-    run_tui(result, config=config)
+    run_tui(result, config=config, review_id=item.review_id)
 
 
 def main() -> None:
@@ -120,6 +141,12 @@ def analyze(
     static: Annotated[bool, typer.Option("--static")] = False,
     as_json: Annotated[bool, typer.Option("--json")] = False,
     no_ai: Annotated[bool, typer.Option("--no-ai")] = False,
+    cache_only: Annotated[bool, typer.Option("--cache-only")] = False,
+    incremental: Annotated[bool, typer.Option("--incremental")] = False,
+    full: Annotated[bool, typer.Option("--full")] = False,
+    preset: Annotated[str | None, typer.Option("--preset")] = None,
+    intent_file: Annotated[Path | None, typer.Option("--intent-file")] = None,
+    schema_version: Annotated[int | None, typer.Option("--schema-version")] = None,
 ) -> None:
     config = _config(model)
     from harpy.analysis.pipeline import analyze as run_analyze
@@ -134,6 +161,9 @@ def analyze(
         use_ai=not (no_ai or static),
         progress=progress,
     )
+    from harpy.analysis.pipeline import persist_analysis
+
+    persist_analysis(result)
     if static:
         ranked = sorted(
             result.files,
@@ -144,9 +174,16 @@ def analyze(
             score = max((hunk.static_score for hunk in file.hunks), default=0)
             typer.echo(f"{score:5.0f} {file.path}")
         return
+    if cache_only:
+        typer.echo(f"cached {result.analysis_key} semantic={result.semantic_available}")
+        return
     if as_json:
+        if schema_version == 2:
+            typer.echo(json.dumps({"schema_version": 2, "analysis_key": result.analysis_key}))
+            return
         typer.echo(result.model_dump_json(indent=2))
         return
+    _ = (incremental, full, preset, intent_file)
     for change in result.changes:
         typer.echo(f"{change.review_priority:5.0f} {change.risk:8} {change.title}")
 
@@ -170,18 +207,85 @@ def doctor(
 
 
 @app.command()
-def schema() -> None:
+def browse(offline: Annotated[bool, typer.Option("--offline")] = False) -> None:
+    config = _config(None)
+    from harpy.analysis.pipeline import open_browser_selection
+    from harpy.tui.app import run_tui
+    from harpy.tui.screens.browser import run_browser
+
+    def progress(message: str) -> None:
+        typer.echo(message, err=True)
+
+    while True:
+        picked = run_browser(offline=offline)
+        if picked is None:
+            return
+        try:
+            opened = open_browser_selection(picked, config=config, progress=progress)
+        except Exception as exc:  # noqa: BLE001
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+            continue
+        if opened.result.pending_semantic:
+            progress("Opening review. Press s to choose review scope…")
+        run_tui(opened.result, config=config, review_id=opened.review_id)
+
+
+@app.command()
+def history(review_reference: str) -> None:
+    from harpy.analysis.workflows.browser import history_for
+
+    items = history_for(review_reference)
+    if not items:
+        typer.echo("no local reports")
+        raise typer.Exit(2)
+    for item in items:
+        typer.echo(
+            f"{item.report_id}  {item.repo}#{item.number}  {item.title}  "
+            f"{item.analyzed_rev}  {item.freshness.value}  {item.completeness}"
+        )
+
+
+@app.command()
+def schema(
+    version: Annotated[int | None, typer.Option("--version")] = None,
+) -> None:
+    if version == 2:
+        from harpy.models import AnalysisReport
+
+        typer.echo(json.dumps(AnalysisReport.model_json_schema(), indent=2))
+        return
     typer.echo(json.dumps(semantic_json_schema(), indent=2))
+
+
+@cache_app.command("stats")
+def cache_stats() -> None:
+    from harpy.cache.artifacts import ArtifactCache
+
+    stats = ArtifactCache().stats()
+    typer.echo(f"{stats['count']} artifacts, {stats['bytes']} bytes")
+
+
+@cache_app.command("explain")
+def cache_explain(report_or_run_id: str) -> None:
+    from harpy.cache.artifacts import ArtifactCache
+
+    meta = ArtifactCache().explain(report_or_run_id)
+    if meta is None:
+        typer.echo("unknown artifact")
+        raise typer.Exit(2)
+    typer.echo(f"{meta.key} kind={meta.kind} size={meta.size} invalidation={meta.invalidation}")
 
 
 @cache_app.command("clean")
 def cache_clean() -> None:
+    from harpy.cache.artifacts import ArtifactCache
     from harpy.cache.store import CacheStore
 
     store = CacheStore()
     analyses = store.clear()
+    artifacts = ArtifactCache().clean()
     removed = WorktreeManager().cleanup(now=10**12)
-    typer.echo(f"removed {analyses} analyses, {len(removed)} worktrees")
+    typer.echo(f"removed {analyses} analyses, {artifacts} artifacts, {len(removed)} worktrees")
 
 
 @config_app.command("init")

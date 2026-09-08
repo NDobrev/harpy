@@ -19,6 +19,7 @@ from harpy.analysis.static_signals import extract_signals, score_signals
 from harpy.analysis.symbols import read_source, symbols_for_hunk
 from harpy.analysis.syntax.extract import extract_file_facts, symbols_from_facts
 from harpy.analysis.syntax.imports import filter_hits
+from harpy.analysis.workflows.session import OpenInbox, OpenReview, ReviewSession
 from harpy.cache.store import CacheStore, cache_key
 from harpy.config import HarpyConfig, with_model
 from harpy.git.diff import parse_unified_diff
@@ -26,6 +27,7 @@ from harpy.git.worktree import WorktreeManager
 from harpy.github.gh import GhProvider, resolve_pr_ref
 from harpy.models import (
     AnalysisResult,
+    BrowserItem,
     FileFacts,
     LogicalChange,
     PullRequest,
@@ -294,6 +296,7 @@ def apply_semantic(
     progress: ProgressCallback | None = None,
     scope_signature: str = "",
 ) -> AnalysisResult:
+    result = result.model_copy(deep=True)
     if force:
         result.pending_semantic = True
         result.semantic_available = False
@@ -389,3 +392,74 @@ def analyze(
             use_cache=use_cache,
         )
     return result
+
+
+def open_browser_selection(
+    selection: OpenReview | OpenInbox,
+    *,
+    config: HarpyConfig,
+    root: Path | None = None,
+    progress: ProgressCallback | None = None,
+) -> OpenReview:
+    if isinstance(selection, OpenReview):
+        return selection
+    result = analyze_static(
+        str(selection.number),
+        config=config,
+        repo=selection.repo,
+        progress=progress,
+    )
+    item = persist_analysis(result, root=root)
+    if item.review_id is None:
+        raise RuntimeError("analysis persist did not assign a review id")
+    return OpenReview(result=result, review_id=item.review_id)
+
+
+def persist_analysis(result: AnalysisResult, *, root: Path | None = None) -> BrowserItem:
+    from harpy.analysis.workflows.browser import persist_analysis as persist
+
+    return persist(result, root=root)
+
+
+def list_browser(
+    tab: str = "local",
+    *,
+    offline: bool = False,
+    root: Path | None = None,
+    refresh_remote: bool = False,
+) -> list[BrowserItem]:
+    from harpy.analysis.workflows.browser import list_browser as listing
+
+    return listing(tab, offline=offline, root=root, refresh_remote=refresh_remote)
+
+
+def load_analysis(review_id: object, *, root: Path | None = None) -> AnalysisResult | None:
+    from uuid import UUID
+
+    from harpy.analysis.workflows.browser import load_analysis as load
+
+    ident = review_id if isinstance(review_id, UUID) else UUID(str(review_id))
+    return load(ident, root=root)
+
+
+def save_review_session(session: ReviewSession, *, root: Path | None = None) -> None:
+    from harpy.analysis.workflows.session import save_review_session as persist
+
+    persist(session, root=root)
+
+
+def load_review_session(review_id: object, *, root: Path | None = None) -> ReviewSession | None:
+    from uuid import UUID
+
+    from harpy.analysis.workflows.session import load_review_session as load
+
+    ident = review_id if isinstance(review_id, UUID) else UUID(str(review_id))
+    return load(ident, root=root)
+
+
+def __getattr__(name: str) -> object:
+    if name == "ReviewService":
+        from harpy.analysis.service import ReviewService
+
+        return ReviewService
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

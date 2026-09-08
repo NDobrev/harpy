@@ -1,6 +1,6 @@
 # Semantic layer
 
-Read-only `cursor-agent` integration. Never import `harpy.tui`. Never spawn `--force`.
+Read-only `cursor-agent` integration. Never import `harpy.tui` or `harpy.verification`. Never spawn `--force`. Never call the verification runner.
 
 - Invoke: `-p --output-format json --mode ask --trust --model <cfg.semantic.model> --workspace <pr-worktree>`.
 - Default model is `cursor-grok-4.6-high-fast`. Per-scope override is allowed.

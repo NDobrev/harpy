@@ -40,6 +40,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "harpy.analysis.syntax" = ["queries/*.scm"]
+"harpy.tui" = ["*.tcss"]
 
 [tool.ruff]
 target-version = "py312"

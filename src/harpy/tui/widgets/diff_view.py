@@ -30,6 +30,7 @@ class DiffView(VerticalScroll):
         super().__init__(name=name, id=id, classes=classes)
         self._jump: list[Widget] = []
         self._jump_index = 0
+        self._show_gen = 0
 
     def compose(self) -> ComposeResult:
         yield Static("No change selected", id="diff-empty", shrink=True)
@@ -42,6 +43,8 @@ class DiffView(VerticalScroll):
         file_path: str | None = None,
         changes: list[LogicalChange] | None = None,
     ) -> None:
+        self._show_gen += 1
+        gen = self._show_gen
         self.remove_children()
         self._jump = []
         self._jump_index = 0
@@ -63,7 +66,7 @@ class DiffView(VerticalScroll):
         if widgets:
             self.mount(*widgets)
         if self._jump:
-            self.call_after_refresh(self._activate, 0)
+            self.call_after_refresh(self._activate, 0, gen)
             return
         self.scroll_home(animate=False)
 
@@ -79,9 +82,15 @@ class DiffView(VerticalScroll):
         self._jump_index = (self._jump_index + delta) % len(self._jump)
         self._activate(self._jump_index)
 
-    def _activate(self, jump_index: int) -> None:
+    def _activate(self, jump_index: int, gen: int | None = None) -> None:
+        if gen is not None and gen != self._show_gen:
+            return
+        if not self._jump or not (0 <= jump_index < len(self._jump)):
+            return
         self._jump_index = jump_index
         target = self._jump[jump_index]
+        if not target.is_mounted:
+            return
         for widget in self.query(".diff-row"):
             widget.set_class(widget is target, "-active")
         self.scroll_to_widget(target, animate=False)
