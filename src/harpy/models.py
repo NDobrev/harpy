@@ -309,11 +309,19 @@ class DiagramHit(BaseModel):
     hunk_id: str = ""
 
 
+class DiagramSpan(BaseModel):
+    row: int
+    col: int
+    width: int
+    tone: str = ""
+
+
 class RenderedDiagram(BaseModel):
     title: str = ""
     kind: str
     lines: list[str] = Field(default_factory=list)
     hits: list[DiagramHit] = Field(default_factory=list)
+    spans: list[DiagramSpan] = Field(default_factory=list)
 
 
 class ApiDiagram(BaseModel):

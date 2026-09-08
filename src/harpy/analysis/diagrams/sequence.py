@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
-from harpy.models import DiagramHit, RenderedDiagram, SequenceDiagram, SequenceStep
+from harpy.models import (
+    DiagramHit,
+    DiagramSpan,
+    RenderedDiagram,
+    SequenceDiagram,
+    SequenceStep,
+)
 
 _MIN_COL = 12
 _CHANGE = {"add": "+", "drop": "-", "alter": "~"}
+_TONES = frozenset(_CHANGE)
 
 
 def render_sequence_diagram(diagram: SequenceDiagram) -> RenderedDiagram:
@@ -18,6 +25,7 @@ def render_sequence_diagram(diagram: SequenceDiagram) -> RenderedDiagram:
     total = sum(widths)
     lines: list[str] = ["SEQUENCE", ""]
     hits: list[DiagramHit] = []
+    spans: list[DiagramSpan] = []
     header = [" "] * total
     for actor, offset, width in zip(actors, offsets, widths, strict=True):
         _place(header, offset + max(0, (width - len(actor)) // 2), actor)
@@ -44,6 +52,7 @@ def render_sequence_diagram(diagram: SequenceDiagram) -> RenderedDiagram:
         start = lo + 1 + max(0, (span - len(shown)) // 2)
         _place(msg_row, start, shown)
         lines.append(_join(msg_row))
+        tone = _tone(step.change)
         if shown:
             hits.append(
                 DiagramHit(
@@ -54,18 +63,22 @@ def render_sequence_diagram(diagram: SequenceDiagram) -> RenderedDiagram:
                     path=step.path,
                 )
             )
+            _span(spans, row=len(lines) - 1, col=start, width=len(shown), tone=tone)
         arrow = _lifelines(centers, total)
         if src < dest:
             for col in range(src + 1, dest):
                 arrow[col] = "─"
             arrow[dest] = "►"
+            arrow_col, arrow_width = src + 1, dest - src
         else:
             arrow[dest] = "◄"
             for col in range(dest + 1, src):
                 arrow[col] = "─"
+            arrow_col, arrow_width = dest, src - dest
         lines.append(_join(arrow))
+        _span(spans, row=len(lines) - 1, col=arrow_col, width=arrow_width, tone=tone)
         lines.append(_join(_lifelines(centers, total)))
-    return RenderedDiagram(title="SEQUENCE", kind="sequence", lines=lines, hits=hits)
+    return RenderedDiagram(title="SEQUENCE", kind="sequence", lines=lines, hits=hits, spans=spans)
 
 
 def _actors(diagram: SequenceDiagram) -> list[str]:
@@ -97,10 +110,21 @@ def _column_width(actor: str, steps: list[SequenceStep], actors: list[str]) -> i
 
 
 def _message(step: SequenceStep) -> str:
-    mark = _CHANGE.get(step.change, "")
+    mark = _CHANGE.get(_tone(step.change), "")
     if mark:
         return f"{step.message} {mark}".strip()
     return step.message
+
+
+def _tone(change: str) -> str:
+    token = change.strip().lower()
+    return token if token in _TONES else ""
+
+
+def _span(spans: list[DiagramSpan], *, row: int, col: int, width: int, tone: str) -> None:
+    if not tone or width <= 0:
+        return
+    spans.append(DiagramSpan(row=row, col=col, width=width, tone=tone))
 
 
 def _offsets(widths: list[int]) -> list[int]:

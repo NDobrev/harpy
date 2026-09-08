@@ -7,6 +7,7 @@ from collections import defaultdict
 
 from harpy.models import (
     DiagramHit,
+    DiagramSpan,
     RenderedDiagram,
     SchemaColumn,
     SchemaRelation,
@@ -59,27 +60,9 @@ def render_schema(
     title: str = "SCHEMA",
     show_legend: bool = True,
 ) -> str:
-    if not snapshot.tables:
-        return ""
-    tables = _order_tables(snapshot.tables, snapshot.relations, highlight)
-    inner = max(20, min(width, 48) - 2)
-    lines = [title]
-    if show_legend:
-        lines.append("  + added   - dropped   ~ changed")
-    lines.append("")
-    drawn = 0
-    for table in tables:
-        if drawn:
-            connector = _connector_after(tables[drawn - 1], table, snapshot.relations)
-            lines.extend(connector)
-            lines.append("")
-        lines.extend(_render_table(table, inner=inner, highlight=highlight))
-        drawn += 1
-    leftover = _leftover_relations(tables, snapshot.relations)
-    if leftover:
-        lines.append("")
-        lines.append("RELATIONS")
-        lines.extend(leftover)
+    lines, _spans = _draw_schema(
+        snapshot, highlight=highlight, width=width, title=title, show_legend=show_legend
+    )
     return "\n".join(lines)
 
 
@@ -151,24 +134,8 @@ def render_before_after(
     highlight: str = "",
     width: int = 40,
 ) -> str:
-    old, new = split_before_after(snapshot)
-    parts: list[str] = ["SCHEMA", "  + added   - dropped   ~ changed", ""]
-    if old.tables:
-        parts.append(
-            render_schema(old, highlight=highlight, width=width, title="OLD", show_legend=False)
-        )
-        parts.append("")
-    if new.tables:
-        parts.append(
-            render_schema(new, highlight=highlight, width=width, title="NEW", show_legend=False)
-        )
-        parts.append("")
-    changed = [rel for rel in snapshot.relations if rel.change]
-    if changed:
-        parts.append("RELATIONS CHANGED")
-        for relation in changed:
-            parts.append(f"  {_relation_change_line(relation)}")
-    return "\n".join(part for part in parts if part is not None).rstrip()
+    lines, _spans = _draw_before_after(snapshot, highlight=highlight, width=width)
+    return "\n".join(lines).rstrip()
 
 
 def schema_picture(
@@ -178,16 +145,91 @@ def schema_picture(
     width: int = 40,
 ) -> RenderedDiagram:
     if has_structural_change(snapshot):
-        text = render_before_after(snapshot, highlight=highlight, width=width)
+        lines, spans = _draw_before_after(snapshot, highlight=highlight, width=width)
+        text = "\n".join(lines).rstrip()
+        lines = text.splitlines()
+        spans = [span for span in spans if span.row < len(lines)]
     else:
-        text = render_schema(snapshot, highlight=highlight, width=width)
-    lines = text.splitlines()
+        lines, spans = _draw_schema(snapshot, highlight=highlight, width=width)
     return RenderedDiagram(
         title="SCHEMA",
         kind="schema",
         lines=lines,
         hits=_hits_from_tables(lines, snapshot.tables),
+        spans=spans,
     )
+
+
+def _draw_schema(
+    snapshot: SchemaSnapshot,
+    *,
+    highlight: str = "",
+    width: int = 40,
+    title: str = "SCHEMA",
+    show_legend: bool = True,
+) -> tuple[list[str], list[DiagramSpan]]:
+    if not snapshot.tables:
+        return [], []
+    tables = _order_tables(snapshot.tables, snapshot.relations, highlight)
+    inner = max(20, min(width, 48) - 2)
+    lines = [title]
+    if show_legend:
+        lines.append("  + added   - dropped   ~ changed")
+    lines.append("")
+    spans: list[DiagramSpan] = []
+    drawn = 0
+    for table in tables:
+        if drawn:
+            connector, connector_spans = _connector_after(
+                tables[drawn - 1], table, snapshot.relations
+            )
+            spans.extend(_shift_spans(connector_spans, len(lines)))
+            lines.extend(connector)
+            lines.append("")
+        table_lines, table_spans = _render_table(table, inner=inner, highlight=highlight)
+        spans.extend(_shift_spans(table_spans, len(lines)))
+        lines.extend(table_lines)
+        drawn += 1
+    leftover, leftover_spans = _leftover_relations(tables, snapshot.relations)
+    if leftover:
+        lines.append("")
+        lines.append("RELATIONS")
+        spans.extend(_shift_spans(leftover_spans, len(lines)))
+        lines.extend(leftover)
+    return lines, spans
+
+
+def _draw_before_after(
+    snapshot: SchemaSnapshot,
+    *,
+    highlight: str = "",
+    width: int = 40,
+) -> tuple[list[str], list[DiagramSpan]]:
+    old, new = split_before_after(snapshot)
+    lines = ["SCHEMA", "  + added   - dropped   ~ changed", ""]
+    spans: list[DiagramSpan] = []
+    if old.tables:
+        chunk, chunk_spans = _draw_schema(
+            old, highlight=highlight, width=width, title="OLD", show_legend=False
+        )
+        spans.extend(_shift_spans(chunk_spans, len(lines)))
+        lines.extend(chunk)
+        lines.append("")
+    if new.tables:
+        chunk, chunk_spans = _draw_schema(
+            new, highlight=highlight, width=width, title="NEW", show_legend=False
+        )
+        spans.extend(_shift_spans(chunk_spans, len(lines)))
+        lines.extend(chunk)
+        lines.append("")
+    changed = [rel for rel in snapshot.relations if rel.change]
+    if changed:
+        lines.append("RELATIONS CHANGED")
+        for relation in changed:
+            line = f"  {_relation_change_line(relation)}"
+            _add_span(spans, row=len(lines), col=0, width=len(line), tone=_tone(relation.change))
+            lines.append(line)
+    return lines, spans
 
 
 def schema_from_patch(patch: str, *, operation: str, target: str) -> SchemaSnapshot:
@@ -395,7 +437,9 @@ def _is_highlight(name: str, highlight: str) -> bool:
     return name == highlight or highlight.startswith(f"{name}.") or name.endswith(highlight)
 
 
-def _render_table(table: SchemaTable, *, inner: int, highlight: str) -> list[str]:
+def _render_table(
+    table: SchemaTable, *, inner: int, highlight: str
+) -> tuple[list[str], list[DiagramSpan]]:
     badge = _TABLE_BADGE.get(table.change, "")
     pointer = "▸ " if _is_highlight(table.name, highlight) else ""
     title = f"{pointer}{table.name}"
@@ -412,7 +456,16 @@ def _render_table(table: SchemaTable, *, inner: int, highlight: str) -> list[str
     for column in rows:
         lines.append(f"│{_col_cell(column, width)}│")
     lines.append(f"└{edge}┘")
-    return lines
+    spans: list[DiagramSpan] = []
+    table_tone = _tone(table.change)
+    if table_tone in {"add", "drop"}:
+        for row, line in enumerate(lines):
+            _add_span(spans, row=row, col=0, width=len(line), tone=table_tone)
+    elif table_tone == "alter":
+        _add_span(spans, row=1, col=1, width=width, tone=table_tone)
+    for index, column in enumerate(rows):
+        _add_span(spans, row=3 + index, col=1, width=width, tone=_tone(column.change))
+    return lines, spans
 
 
 def _col_width(column: SchemaColumn) -> int:
@@ -441,20 +494,35 @@ def _col_cell(column: SchemaColumn, width: int) -> str:
 
 def _connector_after(
     previous: SchemaTable, current: SchemaTable, relations: list[SchemaRelation]
-) -> list[str]:
-    labels = [
-        relation.label or _rel_label(relation)
+) -> tuple[list[str], list[DiagramSpan]]:
+    matches = [
+        relation
         for relation in relations
         if relation.from_table == previous.name and relation.to_table == current.name
     ]
-    if not labels:
-        return []
+    if not matches:
+        return [], []
     pad = " " * 8
     lines = [f"{pad}│"]
-    for label in labels:
-        lines.append(f"{pad}│ {label}" if label else f"{pad}│")
+    spans: list[DiagramSpan] = []
+    tones = {_tone(relation.change) for relation in matches}
+    tones.discard("")
+    stem = next(iter(tones)) if len(tones) == 1 else ""
+    _add_span(spans, row=0, col=len(pad), width=1, tone=stem)
+    for relation in matches:
+        label = relation.label or _rel_label(relation)
+        line = f"{pad}│ {label}" if label else f"{pad}│"
+        lines.append(line)
+        _add_span(
+            spans,
+            row=len(lines) - 1,
+            col=len(pad),
+            width=max(1, len(line) - len(pad)),
+            tone=_tone(relation.change) or stem,
+        )
     lines.append(f"{pad}▼")
-    return lines
+    _add_span(spans, row=len(lines) - 1, col=len(pad), width=1, tone=stem)
+    return lines, spans
 
 
 def _rel_label(relation: SchemaRelation) -> str:
@@ -463,7 +531,9 @@ def _rel_label(relation: SchemaRelation) -> str:
     return ""
 
 
-def _side_connector(relation: SchemaRelation, *, indent: str = "  ") -> list[str]:
+def _side_connector(
+    relation: SchemaRelation, *, indent: str = "  "
+) -> tuple[list[str], list[DiagramSpan]]:
     left = relation.from_table
     if relation.from_column:
         left = f"{left}.{relation.from_column}"
@@ -471,21 +541,48 @@ def _side_connector(relation: SchemaRelation, *, indent: str = "  ") -> list[str
     if relation.to_column:
         right = f"{right}.{relation.to_column}"
     label = relation.label or _rel_label(relation) or "fk"
-    return [f"{indent}┌ {left}", f"{indent}│ {label}", f"{indent}└► {right}"]
+    lines = [f"{indent}┌ {left}", f"{indent}│ {label}", f"{indent}└► {right}"]
+    spans: list[DiagramSpan] = []
+    tone = _tone(relation.change)
+    for row, line in enumerate(lines):
+        _add_span(spans, row=row, col=0, width=len(line), tone=tone)
+    return lines, spans
 
 
-def _leftover_relations(tables: list[SchemaTable], relations: list[SchemaRelation]) -> list[str]:
+def _leftover_relations(
+    tables: list[SchemaTable], relations: list[SchemaRelation]
+) -> tuple[list[str], list[DiagramSpan]]:
     consecutive: set[tuple[str, str]] = set()
     for index, table in enumerate(tables[1:], start=1):
         consecutive.add((tables[index - 1].name, table.name))
     lines: list[str] = []
+    spans: list[DiagramSpan] = []
     for relation in relations:
         if (relation.from_table, relation.to_table) in consecutive:
             continue
         if lines:
             lines.append("")
-        lines.extend(_side_connector(relation))
-    return lines
+        chunk, chunk_spans = _side_connector(relation)
+        spans.extend(_shift_spans(chunk_spans, len(lines)))
+        lines.extend(chunk)
+    return lines, spans
+
+
+def _tone(change: str) -> str:
+    token = change.strip().lower()
+    return token if token in _COL_MARK else ""
+
+
+def _add_span(spans: list[DiagramSpan], *, row: int, col: int, width: int, tone: str) -> None:
+    if not tone or width <= 0:
+        return
+    spans.append(DiagramSpan(row=row, col=col, width=width, tone=tone))
+
+
+def _shift_spans(spans: list[DiagramSpan], rows: int) -> list[DiagramSpan]:
+    if not rows:
+        return list(spans)
+    return [span.model_copy(update={"row": span.row + rows}) for span in spans]
 
 
 def _hits_from_tables(lines: list[str], tables: list[SchemaTable]) -> list[DiagramHit]:
