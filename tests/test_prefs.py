@@ -65,6 +65,19 @@ def test_corrupt_presets_are_empty(tmp_path: Path) -> None:
     assert store.user_presets() == []
 
 
+def test_disabled_repos_roundtrip(tmp_path: Path) -> None:
+    store = PrefsStore(tmp_path)
+    assert store.load_disabled_repos() == set()
+    store.save_disabled_repos({"acme/pay", "acme/web"})
+    assert store.load_disabled_repos() == {"acme/pay", "acme/web"}
+
+
+def test_corrupt_disabled_repos_are_empty(tmp_path: Path) -> None:
+    store = PrefsStore(tmp_path)
+    (tmp_path / "disabled_repos.json").write_text("{not a list", encoding="utf-8")
+    assert store.load_disabled_repos() == set()
+
+
 def test_missing_files_use_defaults(tmp_path: Path) -> None:
     store = PrefsStore(tmp_path / "missing")
     assert store.load_selection() == default_selection()

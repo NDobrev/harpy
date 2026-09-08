@@ -13,6 +13,7 @@ from harpy.review_scope import BUILTIN_PRESETS, default_selection
 
 SCOPE_FILE = "scope.json"
 PRESETS_FILE = "presets.json"
+DISABLED_REPOS_FILE = "disabled_repos.json"
 
 
 def config_dir(*, root: Path | None = None, env: dict[str, str] | None = None) -> Path:
@@ -90,6 +91,22 @@ class PrefsStore:
             return False
         self._write_presets(current)
         return True
+
+    def load_disabled_repos(self) -> set[str]:
+        path = self.root / DISABLED_REPOS_FILE
+        if not path.is_file():
+            return set()
+        try:
+            parsed = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return set()
+        if not isinstance(parsed, list):
+            return set()
+        return {str(item).strip() for item in parsed if str(item).strip()}
+
+    def save_disabled_repos(self, repos: set[str]) -> None:
+        payload = json.dumps(sorted(repos), indent=2)
+        _write_json(self.root / DISABLED_REPOS_FILE, payload)
 
     def _write_presets(self, presets: list[ScopePreset]) -> None:
         payload = json.dumps([item.model_dump() for item in presets], indent=2)

@@ -15,7 +15,7 @@ SEARCH = {
     "assigned": "assignee:@me",
     "review-requested": "review-requested:@me",
 }
-SEARCH_FIELDS = "number,title,repository,author,updatedAt"
+SEARCH_FIELDS = "number,title,repository,author,updatedAt,state"
 INBOX_LIMIT = 20
 
 
@@ -29,6 +29,7 @@ class InboxRow:
     updated_at: str = ""
     latest_rev: str = ""
     ci_summary: str = ""
+    state: str = ""
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ def query_inbox(
     tab: str,
     *,
     offline: bool = False,
+    open_only: bool = True,
     runner: InboxRunner | None = None,
     cached: InboxPage | None = None,
 ) -> InboxPage:
@@ -59,8 +61,11 @@ def query_inbox(
             truncated=prior.truncated,
         )
     execute = runner or run
+    query = SEARCH[tab]
+    if open_only:
+        query = f"{query} state:open"
     result = execute(
-        ["gh", "search", "prs", SEARCH[tab], "--limit", str(INBOX_LIMIT), "--json", SEARCH_FIELDS],
+        ["gh", "search", "prs", query, "--limit", str(INBOX_LIMIT), "--json", SEARCH_FIELDS],
         timeout=20,
     )
     if not result.ok:
@@ -111,6 +116,7 @@ def parse_inbox(payload: str, *, tab: str) -> list[InboxRow]:
                 tab=tab,
                 author=login,
                 updated_at=str(raw.get("updatedAt") or ""),
+                state=str(raw.get("state") or "").lower(),
             )
         )
     return rows
@@ -136,14 +142,14 @@ def refresh_heads(
                 "--repo",
                 row.repo,
                 "--json",
-                "headRefOid,statusCheckRollup",
+                "headRefOid,statusCheckRollup,state,mergedAt",
             ],
             timeout=20,
         )
         if not result.ok:
             updated.append(prior.get(key, row))
             continue
-        head, ci = parse_pr_meta(result.stdout)
+        head, ci, state = parse_pr_meta(result.stdout)
         updated.append(
             InboxRow(
                 repo=row.repo,
@@ -154,22 +160,26 @@ def refresh_heads(
                 updated_at=row.updated_at,
                 latest_rev=head or row.latest_rev,
                 ci_summary=ci or row.ci_summary,
+                state=state or row.state,
             )
         )
     return updated
 
 
-def parse_pr_meta(payload: str) -> tuple[str, str]:
+def parse_pr_meta(payload: str) -> tuple[str, str, str]:
     import json
 
     try:
         loaded = json.loads(payload)
     except json.JSONDecodeError:
-        return "", ""
+        return "", "", ""
     if not isinstance(loaded, dict):
-        return "", ""
+        return "", "", ""
     head = str(loaded.get("headRefOid") or "")
-    return head, _ci_summary(loaded.get("statusCheckRollup"))
+    state = str(loaded.get("state") or "").lower()
+    if loaded.get("mergedAt") or loaded.get("merged") is True:
+        state = "merged"
+    return head, _ci_summary(loaded.get("statusCheckRollup")), state
 
 
 def _repo(value: object) -> str:

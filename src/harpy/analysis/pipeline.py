@@ -427,10 +427,13 @@ def list_browser(
     offline: bool = False,
     root: Path | None = None,
     refresh_remote: bool = False,
+    open_only: bool = True,
 ) -> list[BrowserItem]:
     from harpy.analysis.workflows.browser import list_browser as listing
 
-    return listing(tab, offline=offline, root=root, refresh_remote=refresh_remote)
+    return listing(
+        tab, offline=offline, root=root, refresh_remote=refresh_remote, open_only=open_only
+    )
 
 
 def load_analysis(review_id: object, *, root: Path | None = None) -> AnalysisResult | None:

@@ -12,7 +12,7 @@ from harpy.analysis.workflows.browser import (
 )
 from harpy.analysis.workflows.session import OpenInbox, OpenReview
 from harpy.config import HarpyConfig
-from harpy.github.inbox import InboxPage, parse_inbox, query_inbox
+from harpy.github.inbox import InboxPage, parse_inbox, parse_pr_meta, query_inbox
 from harpy.models import AnalysisResult, Freshness, LogicalChange, PullRequest
 from harpy.proc import ProcResult
 
@@ -74,6 +74,51 @@ def test_offline_inbox_does_not_call_network(tmp_path: Path) -> None:
     assert rows.from_cache
     assert calls == []
     assert "clone" not in json.dumps([item.model_dump(mode="json") for item in listed])
+
+
+def test_authored_tab_does_not_search_other_inboxes(tmp_path: Path) -> None:
+    seen: list[list[str]] = []
+
+    def runner(argv: list[str], **kwargs: object) -> ProcResult:
+        seen.append(list(argv))
+        return _proc("[]")
+
+    list_browser("authored", offline=False, root=tmp_path, runner=runner, refresh_remote=True)
+    searches = [argv for argv in seen if argv[:3] == ["gh", "search", "prs"]]
+    assert len(searches) == 1
+    assert "author:@me" in searches[0][3]
+    assert all("assignee:@me" not in argv[3] for argv in searches)
+    assert all("review-requested:@me" not in argv[3] for argv in searches)
+
+
+def test_authored_tab_reuses_cache_without_refresh(tmp_path: Path) -> None:
+    from harpy.storage.catalog import BrowserCatalog
+
+    BrowserCatalog(tmp_path).put_inbox(
+        "authored",
+        [
+            {
+                "repo": "acme/pay",
+                "number": 7,
+                "title": "cached",
+                "tab": "authored",
+                "author": "me",
+                "updated_at": "now",
+                "latest_rev": "abc",
+                "ci_summary": "",
+                "state": "open",
+            }
+        ],
+    )
+    calls: list[list[str]] = []
+
+    def runner(argv: list[str], **kwargs: object) -> ProcResult:
+        calls.append(list(argv))
+        raise AssertionError("cached authored tab must not call gh")
+
+    items = list_browser("authored", offline=False, root=tmp_path, runner=runner)
+    assert [item.title for item in items] == ["cached"]
+    assert calls == []
 
 
 def test_inbox_tabs_are_distinct() -> None:
@@ -212,6 +257,58 @@ def test_query_inbox_argv_is_metadata_only() -> None:
     assert seen
     assert seen[0][:3] == ["gh", "search", "prs"]
     assert all("clone" not in argv and "worktree" not in argv for argv in seen)
+
+
+def test_query_inbox_defaults_to_open_prs() -> None:
+    seen: list[list[str]] = []
+
+    def runner(argv: list[str], **kwargs: object) -> ProcResult:
+        seen.append(list(argv))
+        return _proc("[]")
+
+    query_inbox("authored", runner=runner)
+    assert any("state:open" in part for part in seen[0])
+    seen.clear()
+    query_inbox("authored", open_only=False, runner=runner)
+    assert all("state:open" not in part for argv in seen for part in argv)
+
+
+def test_list_browser_hides_closed_prs_by_default(tmp_path: Path) -> None:
+    persist_analysis(_result(number=1, title="open"), root=tmp_path)
+    closed = persist_analysis(_result(number=2, title="done"), root=tmp_path)
+    from harpy.storage.catalog import BrowserCatalog
+
+    catalog = BrowserCatalog(tmp_path)
+    review_id = closed.review_id
+    assert review_id is not None
+    entry = catalog.get_entry(review_id)
+    assert entry is not None
+    catalog.put_entry(entry.model_copy(update={"pr_state": "closed"}))
+    opened = list_browser("local", offline=True, root=tmp_path)
+    assert {item.number for item in opened} == {1}
+    all_items = list_browser("local", offline=True, root=tmp_path, open_only=False)
+    assert {item.number for item in all_items} == {1, 2}
+
+
+def test_parse_pr_meta_treats_merged_at_as_merged() -> None:
+    head, _ci, state = parse_pr_meta(
+        json.dumps({"headRefOid": "abc", "state": "CLOSED", "mergedAt": "2026-01-01T00:00:00Z"})
+    )
+    assert head == "abc"
+    assert state == "merged"
+
+
+def test_list_browser_refreshes_blank_state_and_hides_merged(tmp_path: Path) -> None:
+    persist_analysis(_result(number=8, title="old ucl", repo="koru-labs/ucl"), root=tmp_path)
+
+    def runner(argv: list[str], **kwargs: object) -> ProcResult:
+        assert "clone" not in argv
+        return _proc(json.dumps({"state": "CLOSED", "mergedAt": "2026-09-01T00:00:00Z"}))
+
+    hidden = list_browser("local", offline=False, root=tmp_path, runner=runner)
+    assert hidden == []
+    stored = list_browser("local", offline=True, root=tmp_path, open_only=False)
+    assert stored[0].pr_state == "merged"
 
 
 def test_open_inbox_selection_runs_static_and_persists(

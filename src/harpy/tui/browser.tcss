@@ -38,3 +38,31 @@ Screen {
     color: $foreground;
     text-style: bold;
 }
+
+.tree-row.tree-repo {
+    color: $text-muted;
+}
+
+RepoFilterDialog {
+    align: center middle;
+}
+
+#repo-filter-box {
+    width: 72;
+    height: auto;
+    max-height: 24;
+    background: $surface;
+    border: solid $accent;
+    padding: 1 1;
+}
+
+#repo-filter-help {
+    color: $text-muted;
+    padding-bottom: 1;
+}
+
+#repo-filter-rows {
+    height: auto;
+    max-height: 16;
+    overflow-y: auto;
+}

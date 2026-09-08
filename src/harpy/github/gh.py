@@ -13,7 +13,7 @@ from harpy.proc import ProcError, ProcResult, run
 
 VIEW_FIELDS = (
     "number,title,body,commits,files,additions,deletions,"
-    "baseRefName,headRefName,headRefOid,baseRefOid,url"
+    "baseRefName,headRefName,headRefOid,baseRefOid,url,state"
 )
 
 
@@ -124,5 +124,6 @@ class GhProvider:
             additions=int(data.get("additions") or 0),
             deletions=int(data.get("deletions") or 0),
             repo=resolved_repo,
+            state=str(data.get("state") or "").lower(),
             files=files,
         )

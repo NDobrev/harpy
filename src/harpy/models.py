@@ -84,6 +84,7 @@ class PullRequest(BaseModel):
     additions: int
     deletions: int
     repo: str = ""
+    state: str = ""
     files: list[ChangedFile] = Field(default_factory=list)
 
 
@@ -960,6 +961,7 @@ class BrowserItem(BaseModel):
     query_error: str = ""
     truncated: bool = False
     cached_at: str = ""
+    pr_state: str = ""
 
 
 class ReviewView(StrictV2Model):

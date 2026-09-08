@@ -6,8 +6,16 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from harpy.analysis.workflows.session import OpenReview
-from harpy.github.inbox import InboxPage, InboxRow, query_inbox, refresh_heads
+from harpy.github.inbox import (
+    InboxPage,
+    InboxRow,
+    InboxRunner,
+    parse_pr_meta,
+    query_inbox,
+    refresh_heads,
+)
 from harpy.models import AnalysisReport, AnalysisResult, BrowserItem, Freshness, ReportProvenance
+from harpy.proc import ProcResult, run
 from harpy.storage.catalog import BrowserCatalog, freshness_for
 from harpy.storage.db import ReviewStore
 from harpy.storage.paths import data_home
@@ -40,6 +48,7 @@ def persist_analysis(result: AnalysisResult, *, root: Path | None = None) -> Bro
             review_progress=f"0/{len(result.changes)}",
             freshness=Freshness.CURRENT if result.pr.head_sha else Freshness.UNKNOWN,
             has_local_report=True,
+            pr_state=(result.pr.state or "").lower(),
         )
         if item.number == 0:
             item = item.model_copy(update={"number": None})
@@ -87,29 +96,51 @@ def list_browser(
     *,
     offline: bool = False,
     root: Path | None = None,
-    runner: object | None = None,
+    runner: InboxRunner | None = None,
     refresh_remote: bool = False,
+    open_only: bool = True,
 ) -> list[BrowserItem]:
     if tab not in BROWSER_TABS:
         tab = "local"
     catalog = BrowserCatalog(root or data_home())
     local = catalog.list_entries()
+    if not offline:
+        local = _refresh_pr_states(local, catalog=catalog, runner=runner, force=refresh_remote)
     if tab == "local":
-        return [_with_freshness(item) for item in local]
+        items = [_with_freshness(item) for item in local]
+        return _open_only(items) if open_only else items
+    inbox_tabs = ("authored", "assigned", "review-requested")
+    if tab in inbox_tabs:
+        items = _merge(
+            local,
+            _inbox_page(
+                tab,
+                offline=offline,
+                catalog=catalog,
+                runner=runner,
+                refresh_remote=refresh_remote,
+                open_only=open_only,
+            ),
+            tab=tab,
+        )
+        return _open_only(items) if open_only else items
     pages = {
         name: _inbox_page(
-            name, offline=offline, catalog=catalog, runner=runner, refresh_remote=refresh_remote
+            name,
+            offline=offline,
+            catalog=catalog,
+            runner=runner,
+            refresh_remote=refresh_remote,
+            open_only=open_only,
         )
-        for name in ("authored", "assigned", "review-requested")
+        for name in inbox_tabs
     }
-    if tab in pages:
-        return _merge(local, pages[tab], tab=tab)
     tracked = _dedupe([*_flatten(pages), *local])
-    return tracked
+    return _open_only(tracked) if open_only else tracked
 
 
 def history_for(reference: str, *, root: Path | None = None) -> list[BrowserItem]:
-    items = list_browser("local", offline=True, root=root, refresh_remote=False)
+    items = list_browser("local", offline=True, root=root, refresh_remote=False, open_only=False)
     needle = reference.strip().lower()
     if needle.startswith("#"):
         needle = needle[1:]
@@ -133,8 +164,9 @@ def _inbox_page(
     *,
     offline: bool,
     catalog: BrowserCatalog,
-    runner: object | None,
+    runner: InboxRunner | None,
     refresh_remote: bool,
+    open_only: bool = True,
 ) -> list[BrowserItem]:
     cached_rows, cached_at, cached_error, cached_trunc = catalog.get_inbox(tab)
     cached = InboxPage(
@@ -144,12 +176,17 @@ def _inbox_page(
         from_cache=True,
         truncated=cached_trunc,
     )
-    page = query_inbox(tab, offline=offline, runner=runner, cached=cached)  # type: ignore[arg-type]
+    have_cache = bool(cached_rows or cached_error or cached_at)
+    use_cache = offline or (have_cache and not refresh_remote)
+    if use_cache:
+        page = cached
+    else:
+        page = query_inbox(tab, offline=offline, open_only=open_only, runner=runner, cached=cached)
     rows = page.rows
     if refresh_remote and not offline and not page.error:
         prior = {(row.repo, row.number): row for row in cached.rows}
-        rows = refresh_heads(rows, runner=runner, cached_heads=prior)  # type: ignore[arg-type]
-    if not offline:
+        rows = refresh_heads(rows, runner=runner, cached_heads=prior)
+    if not offline and not use_cache:
         catalog.put_inbox(
             tab,
             [_row_payload(row) for row in rows],
@@ -174,6 +211,7 @@ def _inbox_page(
             truncated=truncated,
             cached_at=fetched,
             freshness=Freshness.UNKNOWN,
+            pr_state=row.state,
         )
         for row in rows
     ]
@@ -214,6 +252,7 @@ def _merge(local: list[BrowserItem], remote: list[BrowserItem], *, tab: str) -> 
                     "cached_at": item.cached_at,
                     "freshness": freshness_for(found.analyzed_rev, latest),
                     "has_local_report": True,
+                    "pr_state": item.pr_state or found.pr_state,
                 }
             )
         )
@@ -261,6 +300,60 @@ def _key(item: BrowserItem) -> str:
     if item.repo and item.number is not None:
         return f"{item.repo}#{item.number}"
     return str(item.review_id or item.title)
+
+
+def _refresh_pr_states(
+    items: list[BrowserItem],
+    *,
+    catalog: BrowserCatalog,
+    runner: InboxRunner | None,
+    force: bool,
+) -> list[BrowserItem]:
+    execute: InboxRunner = runner or run
+    updated: list[BrowserItem] = []
+    for item in items:
+        if not item.repo or item.number is None:
+            updated.append(item)
+            continue
+        if item.pr_state and not force:
+            updated.append(item)
+            continue
+        result = execute(
+            [
+                "gh",
+                "pr",
+                "view",
+                str(item.number),
+                "--repo",
+                item.repo,
+                "--json",
+                "state,mergedAt,headRefOid",
+            ],
+            timeout=20,
+        )
+        if not isinstance(result, ProcResult) or not result.ok:
+            updated.append(item)
+            continue
+        _, _, state = parse_pr_meta(result.stdout)
+        if not state:
+            updated.append(item)
+            continue
+        fresh = item.model_copy(update={"pr_state": state})
+        catalog.put_entry(fresh)
+        updated.append(fresh)
+    return updated
+
+
+def _open_only(items: list[BrowserItem]) -> list[BrowserItem]:
+    visible: list[BrowserItem] = []
+    for item in items:
+        if item.query_error and not item.repo:
+            visible.append(item)
+            continue
+        if item.pr_state.lower() in {"closed", "merged"}:
+            continue
+        visible.append(item)
+    return visible
 
 
 def _with_freshness(item: BrowserItem) -> BrowserItem:
@@ -317,6 +410,7 @@ def _row_payload(row: InboxRow) -> dict[str, object]:
         "updated_at": row.updated_at,
         "latest_rev": row.latest_rev,
         "ci_summary": row.ci_summary,
+        "state": row.state,
     }
 
 
@@ -334,4 +428,5 @@ def _inbox_row(row: dict[str, object]) -> InboxRow:
         updated_at=str(row.get("updated_at") or ""),
         latest_rev=str(row.get("latest_rev") or ""),
         ci_summary=str(row.get("ci_summary") or ""),
+        state=str(row.get("state") or "").lower(),
     )
