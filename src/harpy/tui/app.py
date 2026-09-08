@@ -50,7 +50,7 @@ class HarpyApp(App[None]):
         Binding("a", "all", "All"),
         Binding("i", "api_view", "Impact"),
         Binding("escape", "leave_api", "Back", show=False),
-        Binding("s", "scope", "Scope"),
+        Binding("s", "scope", "Analyze"),
         Binding("r", "questions", "Questions"),
         Binding("t", "tests", "Tests"),
         Binding("o", "omissions", "Omissions"),
@@ -297,7 +297,7 @@ class HarpyApp(App[None]):
             return f"{progress}  ·  {_impact_status(self.result)}  ·  {hint}"
         focused = self.focused.id if self.focused is not None else "changes"
         hint = {
-            "changes": "j/k move  space fold  i impact  s scope  tab pane",
+            "changes": "j/k move  space fold  i impact  s analyze  tab pane",
             "diff": "j/k scroll  n/p this context  tab pane",
             "context": "j/k scroll context  tab pane",
         }.get(focused or "", "tab pane")
@@ -310,7 +310,7 @@ class HarpyApp(App[None]):
         if self._semantic_running:
             return f"{progress}  ·  {self._progress_label}  ·  {hint}"
         if self._semantic_allowed:
-            return f"{progress}  ·  Semantic analysis not started  ·  s scope  ·  {hint}"
+            return f"{progress}  ·  Semantic analysis not started  ·  s analyze  ·  {hint}"
         return f"{progress}  ·  Static review priority only.  ·  {hint}"
 
     def on_change_list_cursor_moved(self, event: ChangeList.CursorMoved) -> None:
