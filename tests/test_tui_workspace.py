@@ -250,6 +250,35 @@ async def test_impact_tab_cycles_visible_panes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_impact_tab_hides_review_only_actions() -> None:
+    app = HarpyApp(_result_with_impact())
+    async with app.run_test(size=(160, 48)) as pilot:
+        await pilot.press("i")
+        await pilot.pause()
+
+        descriptions = {
+            active.binding.description
+            for active in app.active_bindings.values()
+            if active.binding.show
+        }
+        assert {"Fold", "Pane", "Impact", "Analyze", "Help", "Zoom", "Quit"} <= descriptions
+        assert {
+            "Tests",
+            "Omissions",
+            "Expand",
+            "Collapse noise",
+            "All",
+            "Questions",
+            "Search",
+            "Palette",
+            "Reviewed",
+            "Reopen",
+            "Blocker",
+            "Note",
+        }.isdisjoint(descriptions)
+
+
+@pytest.mark.asyncio
 async def test_impact_zoom_fills_the_focused_pane() -> None:
     app = HarpyApp(_result_with_impact())
     async with app.run_test(size=(160, 48)) as pilot:

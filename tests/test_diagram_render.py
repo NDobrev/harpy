@@ -55,3 +55,24 @@ def test_paint_and_wrap_hits() -> None:
     assert "[reverse]" in painted
     assert wrap_index(0, 2, 1) == 1
     assert wrap_index(1, 2, 1) == 0
+
+
+def test_paint_sequence_change_colors() -> None:
+    pictures = render_pictures(
+        schema=SchemaSnapshot(),
+        diagrams=[],
+        sequence=SequenceDiagram(
+            actors=["Ops", "API"],
+            steps=[
+                SequenceStep(from_actor="Ops", to_actor="API", message="keep"),
+                SequenceStep(from_actor="API", to_actor="Ops", message="retry", change="add"),
+                SequenceStep(from_actor="Ops", to_actor="API", message="old", change="drop"),
+                SequenceStep(from_actor="API", to_actor="Ops", message="shape", change="alter"),
+            ],
+        ),
+    )
+    painted = paint_rendered(pictures[0], 0)
+    assert "[green]" in painted
+    assert "[red]" in painted
+    assert "[dark_orange]" in painted
+    assert "keep" in painted

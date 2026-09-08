@@ -38,6 +38,19 @@ _API_PANES = ("api-list", "api-diagram", "api-detail")
 _API_FILE_PANES = ("api-list", "diff", "api-detail")
 _PANE_TO_REGION = {"changes": "navigator", "diff": "canvas", "context": "inspector"}
 _REGION_TO_PANE = {region: pane for pane, region in _PANE_TO_REGION.items()}
+_IMPACT_ACTIONS = frozenset(
+    {
+        "focus_next_pane",
+        "api_view",
+        "leave_api",
+        "scope",
+        "help",
+        "zoom",
+        "nav_back",
+        "nav_forward",
+        "quit",
+    }
+)
 
 
 class HarpyApp(App[None]):
@@ -166,6 +179,11 @@ class HarpyApp(App[None]):
 
     def _entering_text(self) -> bool:
         return self.workspace.entering_text or isinstance(self.focused, Input)
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if self.api_mode and action not in _IMPACT_ACTIONS:
+            return False
+        return True
 
     def action_scope(self) -> None:
         if self._entering_text() or not self._semantic_allowed or self.config is None:
@@ -442,6 +460,7 @@ class HarpyApp(App[None]):
         for pane_id in _API_PANES:
             self.query_one(f"#{pane_id}").display = visible
         self.query_one("#freshness").display = True
+        self.refresh_bindings()
 
     def _refresh(self) -> None:
         self._paint_freshness()

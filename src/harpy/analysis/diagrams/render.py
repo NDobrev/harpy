@@ -70,27 +70,68 @@ def render_pictures(
     return [picture for picture in pictures if picture.lines]
 
 
+_TONE_STYLE = {"add": "green", "drop": "red", "alter": "dark_orange"}
+
+
 def paint_rendered(rendered: RenderedDiagram, selected: int) -> str:
-    painted: list[str] = []
-    selected_row = -1
     hit: DiagramHit | None = None
     if rendered.hits and 0 <= selected < len(rendered.hits):
         hit = rendered.hits[selected]
-        selected_row = hit.row
+    painted: list[str] = []
     for row, raw in enumerate(rendered.lines):
-        if hit is None or row != selected_row:
-            painted.append(escape(raw))
-            continue
-        line = raw
-        if hit.col > len(line):
-            line = line.ljust(hit.col)
-        end = hit.col + hit.width
-        if end > len(line):
-            line = line.ljust(end)
-        painted.append(
-            f"{escape(line[: hit.col])}[reverse]{escape(line[hit.col : end])}[/reverse]{escape(line[end:])}"
-        )
+        tones = [
+            (span.col, span.col + span.width, span.tone)
+            for span in rendered.spans
+            if span.row == row and span.width > 0 and span.tone in _TONE_STYLE
+        ]
+        selected_span = None
+        if hit is not None and row == hit.row and hit.width > 0:
+            selected_span = (hit.col, hit.col + hit.width)
+        painted.append(_paint_line(raw, tones, selected_span))
     return "\n".join(painted)
+
+
+def _paint_line(
+    raw: str,
+    tones: list[tuple[int, int, str]],
+    selected: tuple[int, int] | None,
+) -> str:
+    needed = max(
+        [len(raw), *(end for _, end, _ in tones), *(selected[1:] if selected else ())],
+        default=0,
+    )
+    line = raw.ljust(needed)
+    tone_at = [""] * len(line)
+    for start, end, tone in tones:
+        for index in range(max(0, start), min(len(line), end)):
+            tone_at[index] = tone
+    selected_at = [False] * len(line)
+    if selected is not None:
+        for index in range(max(0, selected[0]), min(len(line), selected[1])):
+            selected_at[index] = True
+    parts: list[str] = []
+    index = 0
+    while index < len(line):
+        cursor = index + 1
+        while (
+            cursor < len(line)
+            and tone_at[cursor] == tone_at[index]
+            and selected_at[cursor] == selected_at[index]
+        ):
+            cursor += 1
+        chunk = escape(line[index:cursor])
+        styles: list[str] = []
+        if selected_at[index]:
+            styles.append("reverse")
+        style = _TONE_STYLE.get(tone_at[index])
+        if style:
+            styles.append(style)
+        if styles:
+            parts.append(f"[{' '.join(styles)}]{chunk}[/]")
+        else:
+            parts.append(chunk)
+        index = cursor
+    return "".join(parts)
 
 
 def wrap_index(index: int, count: int, delta: int) -> int:
