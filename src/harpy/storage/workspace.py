@@ -589,12 +589,21 @@ class TenantWorkspace:
             raise NotFound("artifact not found")
         return read_tenant_bytes(self.artifact_root, self.context.tenant_id, digest)
 
-    def put_job(self, *, kind: str, status: str, phase: str, dedupe_key: str) -> Job:
+    def put_job(
+        self,
+        *,
+        kind: str,
+        status: str,
+        phase: str,
+        dedupe_key: str,
+        review_id: UUID | None = None,
+    ) -> Job:
         self._membership()
         job = Job(
             tenant_id=self.context.tenant_id,
             id=uuid4(),
             kind=kind,
+            review_id=review_id,
             actor_id=self.context.actor_id,
             status=status,
             phase=phase,
@@ -610,6 +619,35 @@ class TenantWorkspace:
         if job is None:
             raise NotFound("job not found")
         return job
+
+    def cancel_jobs(
+        self,
+        *,
+        actor_id: UUID | None = None,
+        kinds: frozenset[str] | None = None,
+    ) -> list[Job]:
+        self._membership()
+        rows = list(
+            self.session.scalars(
+                select(Job).where(
+                    Job.tenant_id == self.context.tenant_id,
+                    Job.status.in_(("queued", "running")),
+                )
+            )
+        )
+        cancelled: list[Job] = []
+        now = utcnow()
+        for job in rows:
+            if actor_id is not None and job.actor_id != actor_id:
+                continue
+            if kinds is not None and job.kind not in kinds:
+                continue
+            job.status = "cancelled"
+            job.cancel_requested_at = now
+            job.updated_at = now
+            cancelled.append(job)
+        self.session.flush()
+        return cancelled
 
     def put_credential(self, *, kind: str, ciphertext: str, nonce: str, key_id: str) -> Credential:
         self._membership()

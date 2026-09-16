@@ -25,6 +25,7 @@ web = [
     "alembic>=1.14",
     "psycopg[binary]>=3.2",
     "pysqlite3-binary>=0.5.4",
+    "cryptography>=44.0",
 ]
 dev = [
     "pytest>=8.0",

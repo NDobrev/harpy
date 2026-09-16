@@ -235,8 +235,25 @@ def test_domain_layers_do_not_import_web() -> None:
         "verification",
         "export",
         "cache",
+        "identity",
     ):
         root = SRC / package
         for path in root.rglob("*.py"):
             for name in _full_imports(path):
                 assert not _matches(name, "harpy.web"), path
+
+
+def test_identity_does_not_import_storage_or_providers() -> None:
+    banned = (
+        "harpy.storage",
+        "harpy.web",
+        "harpy.semantic",
+        "harpy.tui",
+        "harpy.github",
+        "harpy.git",
+        "harpy.verification",
+        "subprocess",
+    )
+    for path in (SRC / "identity").rglob("*.py"):
+        for name in _full_imports(path):
+            assert not any(_matches(name, prefix) for prefix in banned), path

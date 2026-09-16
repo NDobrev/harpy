@@ -10,4 +10,5 @@ roots. Web and migrated local state use SQLAlchemy repositories.
 - `cache clean` must not delete reports or human review work.
 - A corrupt database is an error. Never replace it with an empty file.
 - After a verified local import, `storage-backend.json` makes SQL authoritative.
+- Identity lookup and credential wrapping live in storage access helpers.
 - Do not import `harpy.web`.
