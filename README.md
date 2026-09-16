@@ -57,6 +57,7 @@ replace it.
 - [GitHub CLI (`gh`)](https://cli.github.com/), authenticated with `gh auth login`
 - `cursor-agent` for semantic analysis *(optional)*
 - `rg` for faster source lookup *(optional; Harpy has a Python fallback)*
+- Node **22+** for the in-progress browser workspace *(source checkouts and `make check` only)*
 
 ### Install with `uv` (recommended)
 
@@ -91,7 +92,8 @@ make setup
 uv run harpy doctor
 ```
 
-Run the full acceptance suite with `make check`.
+Run the full acceptance suite with `make check`. A source checkout also
+installs the `web/` toolchain; published TUI wheels do not require Node.
 </details>
 
 Changes to `main` go through a pull request and must pass `make check` in CI.
@@ -253,6 +255,7 @@ degradation rules.
 | `harpy cache stats` | Show cached artifact count and size |
 | `harpy cache clean` | Remove cached analyses, artifacts, and worktrees |
 | `harpy schema` | Print the semantic output JSON Schema |
+| `harpy schema --web` | Print the browser API OpenAPI skeleton |
 
 Run `harpy <command> --help` for every option.
 
@@ -287,6 +290,21 @@ harpy doctor
 ## Project
 
 - [Review workspace design](docs/design/review-workspace.md)
+- [Web workspace implementation PRD](docs/design/web-review-workspace-prd.md) — browser, mobile, self-hosted, and SaaS implementation contract
+- [Web parity checklist](docs/web/parity-checklist.md) — TUI workflow coverage for the browser client
+
+### Browser workspace (in progress)
+
+The first slice is the HTTP contract and a seeded theme gallery. It does not
+start analysis or talk to GitHub.
+
+```bash
+uv run harpy schema --web
+npm --prefix web run dev
+```
+
+The gallery exercises White, Black, and Dark Blue tokens plus diff, scope,
+note-conflict, error, and empty states. Dark Blue is the default.
 - [Analysis implementation](docs/design/impl.md)
 - [Domain glossary](docs/CONTEXT.md)
 - [Contributing and agent instructions](AGENTS.md)

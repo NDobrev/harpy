@@ -51,4 +51,4 @@ def test_dependabot_updates_uv_and_actions() -> None:
 
     assert "package-ecosystem: uv" in text
     assert "package-ecosystem: github-actions" in text
-    assert text.count("interval: weekly") == 2
+    assert text.count("interval: weekly") == 3
