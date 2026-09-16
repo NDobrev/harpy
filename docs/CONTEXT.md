@@ -44,5 +44,8 @@ V1 analysis design: [docs/design/impl.md](design/impl.md).
 | Coverage entry | Hunk accounting: supplied, truncated, omitted, exclusion reason. Shared hunks count once. |
 | Freshness | Whether the viewed report matches the latest observed revision and intent. |
 | Review decision | Durable human status for a change in a report: unreviewed, reviewed, question, blocker. |
+| Organization / tenant | Isolated team workspace in a hosted installation. Local web uses one implicit tenant. |
+| Personal session | User/interface navigation and filters. Never a shared decision or note. |
+| Web DTO | Snake_case HTTP contract for the browser client. Unknown fields are rejected. |
 | Review finding | Reviewer disposition on a claim or change, with history. |
 | Logical-change identity | Durable UUID plus revision-local ids (`C1`) and fingerprints. Continuity, not automatic approval. |

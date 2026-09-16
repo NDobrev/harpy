@@ -20,11 +20,14 @@ cli.py → analysis/pipeline.py (ReviewService facade)
  ├─ verification/    (optional isolated runner)
  └─ export/
 tui/ → pipeline/service, review_scope, prefs, models
+web/ → models and application facades (HTTP/DTO contracts; no providers)
 ```
 
 Hard invariants:
 
 - `tui/` never imports `semantic/`, `storage/`, `evidence/`, `github/`, `verification/`, or `git/`.
+- `web/` never imports `semantic/`, `storage/`, `evidence/`, `github/`, `verification/`, or `git/`.
+- Domain, analysis, storage, and TUI packages never import `harpy.web`.
 - `semantic/` never imports `tui/` or `verification/`.
 - `review/` never imports `semantic/` or `subprocess`.
 - `evidence/` never imports `semantic/`.
@@ -51,7 +54,7 @@ The model constant must agree in `HARPY_AGENT_MODEL` (`scripts/build-task.sh`), 
 
 ## Verification
 
-`make check` is the only acceptance command (`fmt`, `lint`, `types`, `test`). Every task is done when `make check` is green.
+`make check` is the only acceptance command (`fmt`, `lint`, `types`, `test`, plus web formatting/lint/types/unit tests). Every task is done when `make check` is green. A source checkout needs Node 22+ for the `web/` gallery toolchain. End-user TUI installs do not.
 
 ## Working rules
 

@@ -113,6 +113,40 @@ def boundary_violations(harpy_root: Path) -> list[str]:
         for name in _imports(scoring):
             if name not in {"__future__", "harpy.models"}:
                 violations.append(f"{scoring}: scoring imports {name}")
+    web = harpy_root / "web"
+    if web.is_dir():
+        banned = (
+            "harpy.storage",
+            "harpy.evidence",
+            "harpy.semantic",
+            "harpy.github",
+            "harpy.verification",
+            "harpy.git",
+        )
+        for path in web.rglob("*.py"):
+            for name in _full_imports(path):
+                if any(_matches(name, prefix) for prefix in banned):
+                    violations.append(f"{path}: web imports {name}")
+    for package in (
+        "analysis",
+        "semantic",
+        "storage",
+        "evidence",
+        "review",
+        "tui",
+        "github",
+        "git",
+        "verification",
+        "export",
+        "cache",
+    ):
+        root = harpy_root / package
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*.py"):
+            for name in _full_imports(path):
+                if _matches(name, "harpy.web"):
+                    violations.append(f"{path}: {package} imports {name}")
     return violations
 
 
@@ -163,3 +197,46 @@ def test_architecture_fixtures_are_detected() -> None:
     assert "harpy.verification" in joined
     assert "scoring imports" in joined
     assert violations, "deliberate fixture violations must fail the checker"
+
+
+def test_web_package_exists() -> None:
+    assert (SRC / "web" / "__init__.py").is_file()
+
+
+def test_web_does_not_import_providers_or_storage() -> None:
+    banned = (
+        "harpy.storage",
+        "harpy.evidence",
+        "harpy.semantic",
+        "harpy.github",
+        "harpy.verification",
+        "harpy.git",
+    )
+    for path in (SRC / "web").rglob("*.py"):
+        for name in _full_imports(path):
+            assert not any(_matches(name, prefix) for prefix in banned), path
+
+
+def test_web_architecture_fixture_is_detected() -> None:
+    violations = boundary_violations(FIXTURE_SRC)
+    assert any("web imports harpy.storage" in item for item in violations)
+
+
+def test_domain_layers_do_not_import_web() -> None:
+    for package in (
+        "analysis",
+        "semantic",
+        "storage",
+        "evidence",
+        "review",
+        "tui",
+        "github",
+        "git",
+        "verification",
+        "export",
+        "cache",
+    ):
+        root = SRC / package
+        for path in root.rglob("*.py"):
+            for name in _full_imports(path):
+                assert not _matches(name, "harpy.web"), path

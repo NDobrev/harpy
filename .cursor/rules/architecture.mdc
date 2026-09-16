@@ -4,8 +4,10 @@ alwaysApply: true
 
 # Architecture
 
-- Layers: `cli` → `analysis/pipeline` (ReviewService facade) → `{github, git, analysis, semantic, cache, storage, evidence, review, verification, export}`. `tui` → `pipeline`/`service`, `review_scope`, `prefs`, `models`.
+- Layers: `cli` → `analysis/pipeline` (ReviewService facade) → `{github, git, analysis, semantic, cache, storage, evidence, review, verification, export}`. `tui` → `pipeline`/`service`, `review_scope`, `prefs`, `models`. `web` → models and application facades only.
 - `tui/` never imports `semantic/`, `storage/`, `evidence/`, `github/`, `verification/`, or `git/`.
+- `web/` never imports `semantic/`, `storage/`, `evidence/`, `github/`, `verification/`, or `git/`.
+- Domain, analysis, storage, and TUI packages never import `harpy.web`.
 - `semantic/` never imports `tui/` or `verification/`.
 - `review/` never imports `semantic/` or `subprocess`. `evidence/` never imports `semantic/`.
 - `src/harpy/analysis/scoring.py` imports only `harpy.models` plus stdlib/pydantic.

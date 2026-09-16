@@ -248,7 +248,15 @@ def history(review_reference: str) -> None:
 @app.command()
 def schema(
     version: Annotated[int | None, typer.Option("--version")] = None,
+    web: Annotated[
+        bool, typer.Option("--web", help="Emit the browser API OpenAPI document")
+    ] = False,
 ) -> None:
+    if web:
+        from harpy.web.openapi import openapi_document
+
+        typer.echo(json.dumps(openapi_document(), indent=2))
+        return
     if version == 2:
         from harpy.models import AnalysisReport
 

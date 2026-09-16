@@ -1,0 +1,12 @@
+---
+globs: src/harpy/web/**/*.py
+alwaysApply: false
+---
+
+# Web transport
+
+- Import `harpy.models` and application facades only.
+- Never import `harpy.semantic`, `harpy.storage`, `harpy.evidence`, `harpy.github`, `harpy.verification`, or `harpy.git`.
+- Pydantic DTOs reject unknown fields.
+- `RequestContext` is trusted server state, not a request body.
+- Do not invoke providers or start analysis from this package.
