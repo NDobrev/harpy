@@ -10,6 +10,7 @@ def test_ci_installs_node_before_make_check() -> None:
     assert "actions/setup-node@" in text
     assert 'node-version: "24"' in text
     assert "cache-dependency-path: web/package-lock.json" in text
+    assert "postgresql" in text
 
 
 def test_makefile_runs_web_checks() -> None:

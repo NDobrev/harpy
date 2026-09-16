@@ -295,8 +295,11 @@ harpy doctor
 
 ### Browser workspace (in progress)
 
-The first slice is the HTTP contract and a seeded theme gallery. It does not
-start analysis or talk to GitHub.
+The first slices are the HTTP contract, a seeded theme gallery, and
+tenant-aware SQL persistence. They do not start analysis or talk to GitHub.
+
+Local web state uses SQLite through the optional `web` extra
+(`sqlalchemy`, `alembic`). Hosted mode uses PostgreSQL.
 
 ```bash
 uv run harpy schema --web
