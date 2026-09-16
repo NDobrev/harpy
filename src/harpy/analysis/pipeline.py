@@ -28,9 +28,11 @@ from harpy.github.gh import GhProvider, resolve_pr_ref
 from harpy.models import (
     AnalysisResult,
     BrowserItem,
+    ChangedFile,
     FileFacts,
     LogicalChange,
     PullRequest,
+    ReferenceHit,
     ScopeCall,
     SemanticAnalysisResult,
     SemanticChangeDraft,
@@ -208,6 +210,79 @@ def analyze_static(
     if use_cache and not pending and (result.semantic_available or not use_ai):
         store.put(key, result)
     _note(progress, "Static ranking ready.")
+    return result
+
+
+def analyze_captured(
+    pr: PullRequest,
+    files: list[ChangedFile],
+    *,
+    config: HarpyConfig,
+    texts: dict[str, str] | None = None,
+) -> AnalysisResult:
+    """Static ranking from a captured diff. Never calls the analyzer."""
+    texts = texts or {}
+    for file in files:
+        apply_classification(file, extra_generated=config.generated_globs)
+    hunks = [hunk for file in files for hunk in file.hunks]
+    file_facts: list[FileFacts] = []
+    by_path: dict[str, FileFacts] = {}
+    for file in files:
+        source_text = texts.get(file.path, "")
+        facts = extract_file_facts(source_text, path=file.path)
+        by_path[file.path] = facts
+        if facts.has_any():
+            file_facts.append(facts)
+    for hunk in hunks:
+        hunk_facts = by_path.get(hunk.file_path)
+        source_text = texts.get(hunk.file_path, "")
+        if hunk_facts is not None and hunk_facts.symbols:
+            hunk.changed_symbols = symbols_from_facts(hunk_facts, hunk)
+        else:
+            hunk.changed_symbols = symbols_for_hunk(hunk, source_text)
+    signals: list[StaticSignals] = []
+    for file in files:
+        signals.extend(extract_signals(file, config.scoring))
+    refs: list[ReferenceHit] = []
+    seen: set[tuple[str, str, int]] = set()
+    for hunk in hunks:
+        for symbol in hunk.changed_symbols:
+            for path, text in texts.items():
+                for index, line in enumerate(text.splitlines(), start=1):
+                    if symbol and symbol in line:
+                        key = (symbol, path, index)
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        refs.append(
+                            ReferenceHit(symbol=symbol, path=path, line=index, kind="source")
+                        )
+                        break
+    if refs and file_facts:
+        refs = filter_hits(refs, file_facts)
+    hunk_symbols = {hunk.id: hunk.changed_symbols for hunk in hunks}
+    for signal in signals:
+        names = hunk_symbols.get(signal.hunk_id or "", [])
+        related = [hit for hit in refs if hit.symbol in names]
+        if len(related) >= 3:
+            signal.widely_referenced = True
+            signal.raw_score = score_signals(signal, config.scoring)
+    result = AnalysisResult(
+        pr=pr,
+        files=files,
+        hunks=hunks,
+        signals=signals,
+        references=refs,
+        file_facts=file_facts,
+        semantic_available=False,
+        pending_semantic=False,
+        analysis_key=f"captured:{pr.repo}:{pr.number}:{pr.head_sha or pr.base_sha}",
+    )
+    result.changes = finalize(result, _static_drafts(result), config)
+    result.api_impacts = extract_static_api_impacts(result)
+    result.db_impacts = extract_static_db_impacts(result)
+    enrich_contract_impacts(result)
+    attach_blast_trees(result)
     return result
 
 

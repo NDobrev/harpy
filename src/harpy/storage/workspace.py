@@ -9,7 +9,7 @@ from json import dumps
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from harpy.models import ReviewStatus
@@ -34,6 +34,7 @@ from harpy.storage.schema import (
     Review,
     ReviewEvent,
     Snapshot,
+    SnapshotFile,
     Tenant,
     User,
     utcnow,
@@ -44,6 +45,8 @@ WRITE_ROLES = frozenset({"administrator", "reviewer"})
 NOTE_MAX_CHARS = 20_000
 NOTE_MAX_BYTES = 80_000
 IDEMPOTENCY_TTL = timedelta(hours=24)
+INBOX_META_REPOSITORY = UUID(int=0)
+INBOX_META_PR = 0
 
 
 class WorkspaceError(RuntimeError):
@@ -786,6 +789,459 @@ class TenantWorkspace:
             PersonalSession,
             (self.context.tenant_id, self.context.actor_id, review_id, client_kind),
         )
+
+    def authorize_read(self, repository_id: UUID) -> RepositoryGrant:
+        self._membership()
+        grant = self.session.get(
+            RepositoryGrant,
+            (self.context.tenant_id, repository_id, self.context.actor_id),
+        )
+        if grant is None or grant.permission not in {"read", "review"}:
+            raise NotFound("not found")
+        return grant
+
+    def authorize_acquire(self, repository_id: UUID) -> None:
+        membership = self._membership()
+        grant = self.authorize_read(repository_id)
+        if membership.role not in WRITE_ROLES or grant.permission != "review":
+            raise AccessDenied("role cannot acquire")
+
+    def get_repository(self, repository_id: UUID) -> Repository:
+        row = self.session.get(Repository, (self.context.tenant_id, repository_id))
+        if row is None or row.state != "active":
+            raise NotFound("not found")
+        self.authorize_read(repository_id)
+        return row
+
+    def get_review(self, review_id: UUID) -> Review:
+        review = self.session.get(Review, (self.context.tenant_id, review_id))
+        if review is None:
+            raise NotFound("review not found")
+        self.authorize_read(review.repository_id)
+        return review
+
+    def find_review(self, repository_id: UUID, target_key: str) -> Review | None:
+        self.authorize_read(repository_id)
+        return self.session.scalar(
+            select(Review).where(
+                Review.tenant_id == self.context.tenant_id,
+                Review.repository_id == repository_id,
+                Review.target_key == target_key,
+            )
+        )
+
+    def find_review_pr(self, repository_id: UUID, pr_number: int) -> Review | None:
+        self.authorize_read(repository_id)
+        return self.session.scalar(
+            select(Review).where(
+                Review.tenant_id == self.context.tenant_id,
+                Review.repository_id == repository_id,
+                Review.pr_number == pr_number,
+            )
+        )
+
+    def get_or_create_review(
+        self,
+        *,
+        repository_id: UUID,
+        target_kind: str,
+        target_key: str,
+        pr_number: int | None,
+        local_spec: dict[str, object] | None,
+    ) -> Review:
+        existing = self.find_review(repository_id, target_key)
+        if existing is not None:
+            return existing
+        self.authorize_acquire(repository_id)
+        review = Review(
+            tenant_id=self.context.tenant_id,
+            id=uuid4(),
+            repository_id=repository_id,
+            target_kind=target_kind,
+            target_key=target_key,
+            pr_number=pr_number,
+            local_spec=local_spec,
+        )
+        self.session.add(review)
+        self.session.flush()
+        return review
+
+    def replay(self, route_key: str, key: UUID, digest: str) -> dict[str, object] | None:
+        return self._idempotency(route_key, key, digest)
+
+    def remember(
+        self,
+        route_key: str,
+        key: UUID,
+        digest: str,
+        response: dict[str, object],
+        status: int = 200,
+    ) -> None:
+        self._store_idempotency(route_key, key, digest, status, response)
+
+    def find_active_job(self, dedupe_key: str) -> Job | None:
+        self._membership()
+        return self.session.scalar(
+            select(Job).where(
+                Job.tenant_id == self.context.tenant_id,
+                Job.dedupe_key == dedupe_key,
+                Job.status.in_(("queued", "running")),
+            )
+        )
+
+    def enqueue_job(
+        self,
+        *,
+        kind: str,
+        dedupe_key: str,
+        review_id: UUID | None = None,
+        request_payload: dict[str, object] | None = None,
+        phase: str = "waiting",
+    ) -> Job:
+        existing = self.find_active_job(dedupe_key)
+        if existing is not None:
+            return existing
+        job = Job(
+            tenant_id=self.context.tenant_id,
+            id=uuid4(),
+            kind=kind,
+            review_id=review_id,
+            actor_id=self.context.actor_id,
+            status="queued",
+            phase=phase,
+            request_payload=request_payload or {},
+            dedupe_key=dedupe_key,
+        )
+        self.session.add(job)
+        self.session.flush()
+        self._job_event(job)
+        return job
+
+    def mark_job(
+        self,
+        job: Job,
+        *,
+        status: str,
+        phase: str,
+        error: dict[str, object] | None = None,
+        result_report_id: UUID | None = None,
+        snapshot_id: UUID | None = None,
+        result_repository_id: UUID | None = None,
+    ) -> Job:
+        now = utcnow()
+        if status == "running" and job.started_at is None:
+            job.started_at = now
+        if status in {"completed", "partial", "failed", "cancelled"}:
+            job.ended_at = now
+        job.status = status
+        job.phase = phase
+        job.error = error
+        if result_report_id is not None:
+            job.result_report_id = result_report_id
+        if snapshot_id is not None:
+            job.snapshot_id = snapshot_id
+        if result_repository_id is not None:
+            job.result_repository_id = result_repository_id
+        job.updated_at = now
+        self.session.flush()
+        self._job_event(job)
+        return job
+
+    def _job_event(self, job: Job) -> None:
+        sequence = self._next_sequence()
+        self.session.add(
+            Event(
+                tenant_id=self.context.tenant_id,
+                sequence=sequence,
+                type="job.updated",
+                audience_kind="repository" if job.review_id else "user",
+                audience_id=None if job.review_id else self.context.actor_id,
+                review_id=job.review_id,
+                job_id=job.id,
+                payload={"status": job.status, "phase": job.phase},
+            )
+        )
+        self.session.flush()
+
+    def github_credential(self) -> Credential | None:
+        self._membership()
+        return self.session.scalar(
+            select(Credential).where(
+                Credential.tenant_id == self.context.tenant_id,
+                Credential.owner_user_id == self.context.actor_id,
+                Credential.kind == "github",
+                Credential.state == "active",
+            )
+        )
+
+    def replace_inbox(
+        self,
+        *,
+        tab: str,
+        rows: list[dict[str, object]],
+        credential_version: int,
+        error: str | None,
+        truncated: bool = False,
+        fetched_at: datetime | None = None,
+    ) -> None:
+        self._membership()
+        now = fetched_at or utcnow()
+        self.session.execute(
+            delete(InboxCache).where(
+                InboxCache.tenant_id == self.context.tenant_id,
+                InboxCache.user_id == self.context.actor_id,
+                InboxCache.tab == tab,
+            )
+        )
+        self.session.add(
+            InboxCache(
+                tenant_id=self.context.tenant_id,
+                user_id=self.context.actor_id,
+                tab=tab,
+                repository_id=INBOX_META_REPOSITORY,
+                pr_number=INBOX_META_PR,
+                payload={"truncated": truncated, "error": error},
+                credential_version=credential_version,
+                fetched_at=now,
+                error=error,
+            )
+        )
+        for row in rows:
+            self.session.add(
+                InboxCache(
+                    tenant_id=self.context.tenant_id,
+                    user_id=self.context.actor_id,
+                    tab=tab,
+                    repository_id=UUID(str(row["repository_id"])),
+                    pr_number=_json_int(row["pr_number"]),
+                    payload=row,
+                    credential_version=credential_version,
+                    fetched_at=now,
+                    error=error,
+                )
+            )
+        sequence = self._next_sequence()
+        self.session.add(
+            Event(
+                tenant_id=self.context.tenant_id,
+                sequence=sequence,
+                type="inbox.updated",
+                audience_kind="user",
+                audience_id=self.context.actor_id,
+                payload={"tab": tab},
+            )
+        )
+        self.session.flush()
+
+    def inbox_rows(self, tab: str) -> tuple[list[InboxCache], InboxCache | None]:
+        rows = self.list_inbox(tab)
+        meta = next((row for row in rows if row.pr_number == INBOX_META_PR), None)
+        entries = [row for row in rows if row.pr_number != INBOX_META_PR]
+        return entries, meta
+
+    def add_repository(
+        self,
+        *,
+        provider: str,
+        host: str,
+        display_name: str,
+        provider_repository_id: str | None = None,
+        local_registration_ref: str | None = None,
+    ) -> Repository:
+        membership = self._membership()
+        if membership.role != "administrator":
+            raise AccessDenied("administrator required")
+        if local_registration_ref:
+            existing = self.session.scalar(
+                select(Repository).where(
+                    Repository.tenant_id == self.context.tenant_id,
+                    Repository.provider == "local",
+                    Repository.local_registration_ref == local_registration_ref,
+                )
+            )
+            if existing is not None:
+                return existing
+        repository = Repository(
+            tenant_id=self.context.tenant_id,
+            id=uuid4(),
+            provider=provider,
+            host=host,
+            provider_repository_id=provider_repository_id,
+            display_name=display_name,
+            local_registration_ref=local_registration_ref,
+            state="active",
+        )
+        self.session.add(repository)
+        self.session.flush()
+        self.session.add(
+            RepositoryGrant(
+                tenant_id=self.context.tenant_id,
+                repository_id=repository.id,
+                user_id=self.context.actor_id,
+                permission="review",
+                version=1,
+            )
+        )
+        self.session.flush()
+        return repository
+
+    def add_snapshot(
+        self,
+        *,
+        snapshot_id: UUID,
+        review_id: UUID,
+        bundle: dict[str, object],
+        files: list[dict[str, object]],
+    ) -> Snapshot:
+        review = self.get_review(review_id)
+        self.authorize_acquire(review.repository_id)
+        snapshot = Snapshot(
+            tenant_id=self.context.tenant_id,
+            id=snapshot_id,
+            review_id=review_id,
+            base_tip_sha=_optional_str(bundle.get("base_tip_sha")),
+            comparison_base_sha=_optional_str(bundle.get("comparison_base_sha")),
+            head_sha=_optional_str(bundle.get("head_sha")),
+            local_digest=_optional_str(bundle.get("local_digest")),
+            intent_digest=str(bundle["intent_digest"]),
+            manifest_digest=str(bundle["manifest_digest"]),
+            diff_digest=str(bundle["diff_digest"]),
+            acquisition_status=str(bundle.get("acquisition_status") or "complete"),
+        )
+        self.session.add(snapshot)
+        for item in files:
+            self.session.add(
+                SnapshotFile(
+                    tenant_id=self.context.tenant_id,
+                    snapshot_id=snapshot_id,
+                    id=UUID(str(item["id"])),
+                    path=str(item["path"]),
+                    old_path=_optional_str(item.get("old_path")),
+                    kind=str(item["kind"]),
+                    mode=str(item.get("mode") or ""),
+                    base_artifact=_optional_str(item.get("base_artifact")),
+                    head_artifact=_optional_str(item.get("head_artifact")),
+                    base_available=bool(item.get("base_available")),
+                    head_available=bool(item.get("head_available")),
+                    availability_reason=_optional_str(item.get("availability_reason")),
+                    binary=bool(item.get("binary")),
+                    byte_size=_json_int(item.get("byte_size") or 0),
+                )
+            )
+        self.session.flush()
+        return snapshot
+
+    def get_snapshot(self, snapshot_id: UUID) -> Snapshot:
+        snapshot = self.session.get(Snapshot, (self.context.tenant_id, snapshot_id))
+        if snapshot is None:
+            raise NotFound("snapshot not found")
+        self.get_review(snapshot.review_id)
+        return snapshot
+
+    def snapshot_files(self, snapshot_id: UUID) -> list[SnapshotFile]:
+        self.get_snapshot(snapshot_id)
+        return list(
+            self.session.scalars(
+                select(SnapshotFile).where(
+                    SnapshotFile.tenant_id == self.context.tenant_id,
+                    SnapshotFile.snapshot_id == snapshot_id,
+                )
+            )
+        )
+
+    def snapshot_file(self, snapshot_id: UUID, file_id: UUID) -> SnapshotFile:
+        row = self.session.get(SnapshotFile, (self.context.tenant_id, snapshot_id, file_id))
+        if row is None:
+            raise NotFound("file not found")
+        self.get_snapshot(snapshot_id)
+        return row
+
+    def report_changes(self, report_id: UUID) -> list[ReportChange]:
+        self.get_report(report_id)
+        return list(
+            self.session.scalars(
+                select(ReportChange)
+                .where(
+                    ReportChange.tenant_id == self.context.tenant_id,
+                    ReportChange.report_id == report_id,
+                )
+                .order_by(ReportChange.rank_index)
+            )
+        )
+
+    def publish_static_report(
+        self,
+        *,
+        review_id: UUID,
+        snapshot_id: UUID,
+        content_digest: str,
+        config_digest: str,
+        changes: list[tuple[UUID, str, int, dict[str, object]]],
+        scope_summary: dict[str, object],
+        provenance: dict[str, object],
+        observation: dict[str, object],
+    ) -> Report:
+        review = self.get_review(review_id)
+        self.authorize_acquire(review.repository_id)
+        snapshot = self.get_snapshot(snapshot_id)
+        tuples = [(change_id, local_id, rank) for change_id, local_id, rank, _proj in changes]
+        report = self.add_report(
+            review_id=review_id,
+            snapshot_id=snapshot_id,
+            kind="static",
+            content_digest=content_digest,
+            config_digest=config_digest,
+            changes=tuples,
+            scope_summary=scope_summary,
+            provenance=provenance,
+            make_latest=False,
+        )
+        for change_id, _local_id, _rank, projection in changes:
+            row = self.session.get(ReportChange, (self.context.tenant_id, report.id, change_id))
+            if row is not None:
+                row.projection = projection
+        self._set_latest_if_newer(review, report, snapshot)
+        review.last_observation = observation
+        review.updated_at = utcnow()
+        sequence = self._next_sequence()
+        self.session.add(
+            Event(
+                tenant_id=self.context.tenant_id,
+                sequence=sequence,
+                type="report.created",
+                audience_kind="repository",
+                review_id=review_id,
+                report_id=report.id,
+                payload={"kind": "static"},
+            )
+        )
+        self.session.flush()
+        return report
+
+    def _set_latest_if_newer(self, review: Review, report: Report, snapshot: Snapshot) -> None:
+        if review.latest_report_id is None:
+            review.latest_report_id = report.id
+            return
+        current = self.session.get(Report, (self.context.tenant_id, review.latest_report_id))
+        if current is None:
+            review.latest_report_id = report.id
+            return
+        current_snapshot = self.session.get(Snapshot, (self.context.tenant_id, current.snapshot_id))
+        if current_snapshot is None or snapshot.captured_at >= current_snapshot.captured_at:
+            review.latest_report_id = report.id
+
+
+def _optional_str(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    return text or None
+
+
+def _json_int(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return int(str(value))
+    return value
 
 
 def create_local_graph(
