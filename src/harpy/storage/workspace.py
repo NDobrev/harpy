@@ -26,6 +26,7 @@ from harpy.storage.schema import (
     Job,
     LogicalChange,
     Membership,
+    PersonalSession,
     Report,
     ReportChange,
     Repository,
@@ -684,6 +685,68 @@ class TenantWorkspace:
                     ReviewEvent.kind == kind,
                 )
             ).all()
+        )
+
+    def change_ids_for(self, report_id: UUID) -> dict[str, UUID]:
+        rows = self.session.scalars(
+            select(ReportChange).where(
+                ReportChange.tenant_id == self.context.tenant_id,
+                ReportChange.report_id == report_id,
+            )
+        )
+        return {row.local_id: row.change_id for row in rows}
+
+    def latest_report_id(self, review_id: UUID) -> UUID | None:
+        review = self.session.get(Review, (self.context.tenant_id, review_id))
+        if review is None:
+            raise NotFound("review not found")
+        return review.latest_report_id
+
+    def save_personal_session(
+        self,
+        review_id: UUID,
+        *,
+        client_kind: str,
+        selection: dict[str, object],
+        history: list[object],
+        report_id: UUID | None = None,
+    ) -> PersonalSession:
+        self._membership()
+        review = self.session.get(Review, (self.context.tenant_id, review_id))
+        if review is None:
+            raise NotFound("review not found")
+        now = utcnow()
+        row = self.session.get(
+            PersonalSession,
+            (self.context.tenant_id, self.context.actor_id, review_id, client_kind),
+        )
+        if row is None:
+            row = PersonalSession(
+                tenant_id=self.context.tenant_id,
+                user_id=self.context.actor_id,
+                review_id=review_id,
+                client_kind=client_kind,
+                report_id=report_id or review.latest_report_id,
+                selection=selection,
+                history=history,
+                version=1,
+                updated_at=now,
+            )
+            self.session.add(row)
+        else:
+            row.selection = selection
+            row.history = history
+            row.report_id = report_id or row.report_id or review.latest_report_id
+            row.version += 1
+            row.updated_at = now
+        self.session.flush()
+        return row
+
+    def get_personal_session(self, review_id: UUID, client_kind: str) -> PersonalSession | None:
+        self._membership()
+        return self.session.get(
+            PersonalSession,
+            (self.context.tenant_id, self.context.actor_id, review_id, client_kind),
         )
 
 

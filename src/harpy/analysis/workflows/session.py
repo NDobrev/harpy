@@ -41,7 +41,31 @@ class OpenInbox:
 
 
 def save_review_session(session: ReviewSession, *, root: Path | None = None) -> None:
-    catalog = BrowserCatalog(root or data_home())
+    target = root or data_home()
+    from harpy.storage.backend import read_marker
+    from harpy.storage.session_sql import SqlReviewSession, save_sql_session
+
+    marker = read_marker(target)
+    if marker is not None:
+        save_sql_session(
+            SqlReviewSession(
+                review_id=session.review_id,
+                statuses=dict(session.statuses),
+                notes=dict(session.notes),
+                selected_id=session.selected_id,
+                selected_file=session.selected_file,
+                lens=session.lens,
+                focused_pane=session.focused_pane,
+                search=session.search,
+                history=[item for item in session.history if isinstance(item, dict)],
+                history_index=session.history_index,
+                review_progress=session.review_progress,
+            ),
+            root=target,
+            marker=marker,
+        )
+        return
+    catalog = BrowserCatalog(target)
     catalog.put_session(session.review_id, _payload(session))
     entry = catalog.get_entry(session.review_id)
     if entry is not None and session.review_progress:
@@ -49,7 +73,29 @@ def save_review_session(session: ReviewSession, *, root: Path | None = None) -> 
 
 
 def load_review_session(review_id: UUID, *, root: Path | None = None) -> ReviewSession | None:
-    raw = BrowserCatalog(root or data_home()).get_session(review_id)
+    target = root or data_home()
+    from harpy.storage.backend import read_marker
+    from harpy.storage.session_sql import load_sql_session
+
+    marker = read_marker(target)
+    if marker is not None:
+        loaded = load_sql_session(review_id, root=target, marker=marker)
+        if loaded is None:
+            return None
+        return ReviewSession(
+            review_id=loaded.review_id,
+            statuses=loaded.statuses,
+            notes=loaded.notes,
+            selected_id=loaded.selected_id,
+            selected_file=loaded.selected_file,
+            lens=loaded.lens,
+            focused_pane=loaded.focused_pane,
+            search=loaded.search,
+            history=loaded.history,
+            history_index=loaded.history_index,
+            review_progress=loaded.review_progress,
+        )
+    raw = BrowserCatalog(target).get_session(review_id)
     if raw is None:
         return None
     return _from_payload(review_id, raw)

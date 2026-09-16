@@ -295,11 +295,13 @@ harpy doctor
 
 ### Browser workspace (in progress)
 
-The first slices are the HTTP contract, a seeded theme gallery, and
-tenant-aware SQL persistence. They do not start analysis or talk to GitHub.
+The first slices are the HTTP contract, a seeded theme gallery,
+tenant-aware SQL persistence, and local legacy import. They do not start
+analysis or talk to GitHub.
 
 Local web state uses SQLite through the optional `web` extra
-(`sqlalchemy`, `alembic`). Hosted mode uses PostgreSQL.
+(`sqlalchemy`, `alembic`). Hosted mode uses PostgreSQL. An existing TUI
+data root stays on JSON until a verified import writes `storage-backend.json`.
 
 ```bash
 uv run harpy schema --web

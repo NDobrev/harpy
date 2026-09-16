@@ -9,4 +9,5 @@ roots. Web and migrated local state use SQLAlchemy repositories.
 - Reports are immutable after insert. Lookup uses the report row, not latest-report.
 - `cache clean` must not delete reports or human review work.
 - A corrupt database is an error. Never replace it with an empty file.
+- After a verified local import, `storage-backend.json` makes SQL authoritative.
 - Do not import `harpy.web`.
