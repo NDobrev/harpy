@@ -295,9 +295,10 @@ harpy doctor
 
 ### Browser workspace (in progress)
 
-The first slices are the HTTP contract, a seeded theme gallery,
-tenant-aware SQL persistence, local legacy import, and identity/access
-checks. They do not start analysis or talk to GitHub.
+Shipped backend slices: HTTP/DTO contract, theme gallery, tenant-aware SQL,
+legacy import, identity/access, and immutable acquisition. Opening a target
+publishes a static report from captured patches and source. Semantic analysis
+still does not start automatically, and tests use fake GitHub adapters.
 
 Local web state uses SQLite through the optional `web` extra
 (`sqlalchemy`, `alembic`). Hosted mode uses PostgreSQL. An existing TUI
@@ -306,10 +307,14 @@ data root stays on JSON until a verified import writes `storage-backend.json`.
 ```bash
 uv run harpy schema --web
 npm --prefix web run dev
+make check
 ```
 
-The gallery exercises White, Black, and Dark Blue tokens plus diff, scope,
-note-conflict, error, and empty states. Dark Blue is the default.
+`make check` includes the web acquisition suite
+(`tests/test_web_acquisition.py`). The gallery exercises White, Black, and
+Dark Blue tokens plus diff, scope, note-conflict, error, and empty states.
+Dark Blue is the default.
+
 - [Analysis implementation](docs/design/impl.md)
 - [Domain glossary](docs/CONTEXT.md)
 - [Contributing and agent instructions](AGENTS.md)

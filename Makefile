@@ -38,6 +38,7 @@ types:
 	uv run mypy src tests
 	npm --prefix $(WEB) run types
 
+# Python tests cover TUI plus web WP-01..WP-05 (contracts, SQL, identity, acquisition).
 test:
 	uv run pytest -m "not cursor"
 	npm --prefix $(WEB) run test

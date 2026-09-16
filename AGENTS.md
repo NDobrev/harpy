@@ -10,7 +10,7 @@ Design: [docs/design/review-workspace.md](docs/design/review-workspace.md), [doc
 cli.py → analysis/pipeline.py (ReviewService facade)
  ├─ github/          (gh CLI via proc.py)
  ├─ git/             (worktree + diff via proc.py)
- ├─ analysis/        (classifier, signals, symbols, references)
+ ├─ analysis/        (classifier, signals, symbols, references, tenant opening)
  ├─ semantic/        (cursor-agent, read-only)
  ├─ analysis/scoring.py  (imports models.py only)
  ├─ cache/

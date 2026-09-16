@@ -9,3 +9,4 @@ Deterministic signals, classification, symbols, references, scoring, pipeline or
 - `syntax/` is tree-sitter only. It must not import `harpy.tui` or `harpy.semantic`.
 - Pipeline is the public facade (`ReviewService` in later tasks). TUI must not live here.
 - Pipeline may call github, git, semantic, cache, storage, evidence, review, verification, export.
+- Tenant web opening lives in `opening.py` / `capture.py`. Inject GitHub and git adapters; never call a live analyzer. Static reports are published from captured artifacts only.
